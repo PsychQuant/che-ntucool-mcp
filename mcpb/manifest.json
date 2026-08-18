@@ -1,0 +1,75 @@
+{
+  "author" : {
+    "name" : "Che Cheng",
+    "url" : "https://github.com/kiki830621"
+  },
+  "compatibility" : {
+    "platforms" : [
+      "darwin"
+    ]
+  },
+  "description" : "NTU COOL (Canvas LMS) read-only query server — courses, assignments, submissions, announcements, files",
+  "display_name" : "NTU COOL",
+  "homepage" : "https://github.com/kiki830621/che-ntucool-mcp",
+  "icon" : "icon.png",
+  "keywords" : [
+    "ntu-cool",
+    "canvas-lms",
+    "canvas",
+    "education",
+    "lms",
+    "ntu"
+  ],
+  "license" : "MIT",
+  "long_description" : "Read-only MCP server for NTU COOL, National Taiwan University's Canvas LMS deployment. Confirmed via live verification (PsychQuant/ntu-claude-plugins#17) that NTU COOL is a customized Canvas deployment with a fully open standard Canvas REST API. Provides tools to list courses, assignments, announcements, submission/grading status, files, and course enrollments. Requires a Canvas Personal Access Token stored in the macOS keychain (service `ntu-cool-canvas`) — the token is never read from an environment variable or written to disk. v0.1.0 is deliberately read-only: grade posting and announcement creation are teaching-incident-risk operations left for a later, more deliberate version.",
+  "manifest_version" : "0.3",
+  "name" : "che-ntucool-mcp",
+  "privacy_policies" : [
+    "https://github.com/kiki830621/che-ntucool-mcp/blob/main/mcpb/PRIVACY.md"
+  ],
+  "repository" : {
+    "type" : "git",
+    "url" : "https://github.com/kiki830621/che-ntucool-mcp.git"
+  },
+  "server" : {
+    "entry_point" : "server/CheNtucoolMCP",
+    "mcp_config" : {
+      "args" : [
+
+      ],
+      "command" : "${__dirname}/server/CheNtucoolMCP",
+      "env" : {
+
+      }
+    },
+    "type" : "binary"
+  },
+  "support" : "https://github.com/kiki830621/che-ntucool-mcp/issues",
+  "tools" : [
+    {
+      "description" : "List courses the token owner is enrolled in or teaching",
+      "name" : "list_courses"
+    },
+    {
+      "description" : "List assignments in a course",
+      "name" : "list_assignments"
+    },
+    {
+      "description" : "List announcements posted in a course",
+      "name" : "list_announcements"
+    },
+    {
+      "description" : "List submission/grading status for every student in a course",
+      "name" : "list_submissions"
+    },
+    {
+      "description" : "List files uploaded to a course",
+      "name" : "list_files"
+    },
+    {
+      "description" : "List the enrollment roster for a course",
+      "name" : "list_enrollments"
+    }
+  ],
+  "version" : "0.1.0"
+}

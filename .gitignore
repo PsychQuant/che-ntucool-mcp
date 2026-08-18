@@ -1,0 +1,31 @@
+# Swift
+.build/
+.swiftpm/
+Package.resolved
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+*.xcodeproj/
+*.xcworkspace/
+
+# MCPB package (generated, rebuild via scripts/build-mcpb.sh)
+mcpb/*.mcpb
+
+# Build artifacts (distributed via GitHub Release)
+mcpb/server/*
+!mcpb/server/.gitkeep
+
+# Local/personal files
+.remember/
+.agents/
+.claude/*
+!.claude/rules/
+logs/
+
+# Stray CLI/tool logs — never track
+*.log
+
+*.code-workspace

@@ -1,0 +1,2 @@
+# No LFS needed — build artifacts are distributed via GitHub Release
+# Only use LFS for non-rebuildable files > 50MB (currently none)
