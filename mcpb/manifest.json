@@ -10,7 +10,7 @@
   },
   "description" : "NTU COOL (Canvas LMS) read-only query server — courses, assignments, submissions, announcements, files",
   "display_name" : "NTU COOL",
-  "homepage" : "https://github.com/kiki830621/che-ntucool-mcp",
+  "homepage" : "https://github.com/PsychQuant/che-ntucool-mcp",
   "icon" : "icon.png",
   "keywords" : [
     "ntu-cool",
@@ -25,11 +25,11 @@
   "manifest_version" : "0.3",
   "name" : "che-ntucool-mcp",
   "privacy_policies" : [
-    "https://github.com/kiki830621/che-ntucool-mcp/blob/main/mcpb/PRIVACY.md"
+    "https://github.com/PsychQuant/che-ntucool-mcp/blob/main/mcpb/PRIVACY.md"
   ],
   "repository" : {
     "type" : "git",
-    "url" : "https://github.com/kiki830621/che-ntucool-mcp.git"
+    "url" : "https://github.com/PsychQuant/che-ntucool-mcp.git"
   },
   "server" : {
     "entry_point" : "server/CheNtucoolMCP",
@@ -44,7 +44,7 @@
     },
     "type" : "binary"
   },
-  "support" : "https://github.com/kiki830621/che-ntucool-mcp/issues",
+  "support" : "https://github.com/PsychQuant/che-ntucool-mcp/issues",
   "tools" : [
     {
       "description" : "List courses the token owner is enrolled in or teaching",

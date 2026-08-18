@@ -34,4 +34,4 @@ third-party service.
 ## Contact
 
 For questions about this privacy policy, please open an issue at:
-https://github.com/kiki830621/che-ntucool-mcp/issues
+https://github.com/PsychQuant/che-ntucool-mcp/issues
