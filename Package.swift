@@ -12,7 +12,11 @@ let package = Package(
             name: "CheNtucoolMCP",
             dependencies: [
                 .product(name: "MCP", package: "swift-sdk")
-            ]
+            ],
+            // Entitlements.plist is consumed by scripts/sign-and-notarize.sh at
+            // release time, not compiled — exclude it so SwiftPM doesn't warn
+            // about an unhandled resource.
+            exclude: ["Entitlements.plist"]
         ),
         .testTarget(
             name: "CheNtucoolMCPTests",

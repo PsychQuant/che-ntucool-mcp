@@ -13,6 +13,7 @@ Package.resolved
 
 # MCPB package (generated, rebuild via scripts/build-mcpb.sh)
 mcpb/*.mcpb
+mcpb/*.mcpb.sha256
 
 # Build artifacts (distributed via GitHub Release)
 mcpb/server/*

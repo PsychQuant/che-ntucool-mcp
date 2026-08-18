@@ -11,7 +11,6 @@
   "description" : "NTU COOL (Canvas LMS) read-only query server — courses, assignments, submissions, announcements, files",
   "display_name" : "NTU COOL",
   "homepage" : "https://github.com/PsychQuant/che-ntucool-mcp",
-  "icon" : "icon.png",
   "keywords" : [
     "ntu-cool",
     "canvas-lms",
