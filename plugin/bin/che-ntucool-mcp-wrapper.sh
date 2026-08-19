@@ -104,7 +104,8 @@ fi
 # inside a tool call.
 if ! security find-generic-password -s ntu-cool-canvas -a "${NTUCOOL_ACCOUNT:-default}" -w >/dev/null 2>&1; then
     echo "$BINARY_NAME: no Canvas token in keychain for account '${NTUCOOL_ACCOUNT:-default}'." >&2
-    echo "  Generate one: NTU COOL → 帳戶 → 設定 → 新訪問令牌" >&2
+    echo "  Generate one: NTU COOL → 帳戶 → 設定 → 已核准的整合 → 新訪問令牌" >&2
+    echo "                (NTU's theme hides that section by default)" >&2
     echo "  Store it:     security add-generic-password -s ntu-cool-canvas -a ${NTUCOOL_ACCOUNT:-default} -w '<token>'" >&2
     echo "  (server will still start — this just means tool calls will fail until provisioned)" >&2
 fi

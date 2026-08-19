@@ -38,7 +38,16 @@ all.
 
 ## Setup
 
-1. Generate a Canvas Personal Access Token: NTU COOL → 帳戶 → 設定 → 新訪問令牌
+1. Generate a Canvas Personal Access Token: NTU COOL → 帳戶 → 設定 →
+   已核准的整合 → 新訪問令牌.
+
+   You will probably not see that section. NTU COOL's custom theme hides the
+   whole 已核准的整合 block — token button included — with a `display: none`
+   rule. That is a cosmetic hide, not Canvas's `limit_personal_access_tokens`
+   account setting: the control is still rendered into the page, so the token
+   remains obtainable once the block is made visible. Verified 2026-08-19. If
+   `.add_access_token_link` is absent from the DOM entirely, self-service
+   tokens really have been disabled — contact ntucool@ntu.edu.tw.
 2. Store it in the macOS keychain (never as an env var, never in a config file):
 
    ```bash

@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.1] - 2026-08-19
+
+### Fixed
+- Setup instructions pointed at a token path that dead-ends as written. The Canvas
+  control lives under 帳戶 → 設定 → **已核准的整合** → 新訪問令牌, and NTU COOL's
+  custom theme hides that entire block:
+
+  ```css
+  .approved_integration_headers, .approved_integration_content { display: none; }
+  ```
+
+  So a reader following the documented path looks for a button inside a section
+  they cannot see, and concludes the feature is unavailable.
+
+  Corrected in all four places that carried the old path: the README setup step,
+  the server's own `instructions` string (delivered to the client — the model was
+  reading the wrong path too, and would have relayed it), the `ntucool-canvas`
+  skill, and the wrapper's token-missing stderr hint.
+
+  The hide is cosmetic, not Canvas's `limit_personal_access_tokens` account
+  setting — `.add_access_token_link` is still rendered into the page, so tokens
+  remain obtainable. Verified against a live NTU COOL session 2026-08-19.
+
 ## [0.2.0] - 2026-08-19
 
 ### Added — write operations, human-confirmed (Foresay protocol)

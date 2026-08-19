@@ -35,9 +35,10 @@ Requires a Canvas Personal Access Token in the macOS keychain:
 security add-generic-password -s ntu-cool-canvas -a default -w '<token>'
 ```
 
-Generate the token at NTU COOL → 帳戶 → 設定 → 新訪問令牌. If missing, tool
-calls fail with a Canvas 401 — the error message will say so; direct the user
-to run the command above, not attempt to work around it.
+Generate the token at NTU COOL → 帳戶 → 設定 → 已核准的整合 → 新訪問令牌 — NTU's
+theme hides that section by default, so the user may report not seeing it. If the
+token is missing, tool calls fail with a Canvas 401 — the error message will say
+so; direct the user to run the command above, not attempt to work around it.
 
 ## Read tools
 

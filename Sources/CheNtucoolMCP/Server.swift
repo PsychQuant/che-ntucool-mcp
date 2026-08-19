@@ -36,8 +36,9 @@ class NtucoolMCPServer {
     Queries and human-confirmed writes against NTU COOL, National Taiwan
     University's Canvas LMS deployment (`cool.ntu.edu.tw`). Requires a Canvas
     Personal Access Token stored in the macOS keychain (service
-    `ntu-cool-canvas`) — generate one at
-    NTU COOL → 帳戶 → 設定 → 新訪問令牌, then:
+    `ntu-cool-canvas`) — generate one at NTU COOL → 帳戶 → 設定 →
+    已核准的整合 → 新訪問令牌 (NTU's theme hides that section by default, so the
+    user may report not seeing it), then:
 
         security add-generic-password -s ntu-cool-canvas -a <login-id> -w <token>
 
