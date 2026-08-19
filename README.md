@@ -29,7 +29,19 @@ announcements, and files.
 
 ## Installation
 
-### Claude Code CLI
+### As a Claude Code plugin (recommended)
+
+```
+claude plugin marketplace add PsychQuant/che-ntucool-mcp
+claude plugin install che-ntucool-mcp@che-ntucool-mcp
+```
+
+The plugin's wrapper auto-downloads the binary on first use and re-downloads
+when a new version ships — no manual binary management. See
+[`plugin/README.md`](plugin/README.md) for what's included (commands, skill,
+staleness-detection hook).
+
+### Manual (Claude Code CLI, no plugin)
 
 ```bash
 mkdir -p ~/bin

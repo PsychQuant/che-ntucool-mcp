@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "che-ntucool-mcp",
+  "description": "NTU COOL (Canvas LMS) MCP — self-hosted marketplace co-located with the binary source.",
+  "owner": {
+    "name": "Che Cheng"
+  },
+  "homepage": "https://github.com/PsychQuant/che-ntucool-mcp",
+  "plugins": [
+    {
+      "name": "che-ntucool-mcp",
+      "version": "0.1.0",
+      "description": "NTU COOL (Canvas LMS) read-only query MCP — courses, assignments, submissions, announcements, files, roster.",
+      "author": {
+        "name": "Che Cheng"
+      },
+      "source": "./plugin",
+      "category": "productivity"
+    }
+  ]
+}
