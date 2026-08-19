@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.2.2] - 2026-08-19
+
+### Fixed
+- The keychain account name was documented as `<login-id>`, with a note saying it
+  could be any label. It cannot: the wrapper and the server both look up
+  `${NTUCOOL_ACCOUNT:-default}`, so a token stored under a login-id is simply not
+  found. Anyone following the setup instructions literally ended up with a token
+  the server could not read. Now documented as `default`, with the override
+  described as a lookup key rather than a label.
+
+- Every example passed the token as `-w <token>`, which places it in the process
+  argument list for the lifetime of the command — readable by any local process
+  via `ps`, whether or not it was ever echoed. Omitting the value makes `security`
+  prompt for it instead. Corrected in the README, the `ntucool-canvas` skill, the
+  wrapper's stderr hint, the server's `instructions` string, and the token-missing
+  error message.
+
+  The last two matter beyond documentation: they are compiled into the binary, so
+  until this release the shipped server told users — and told the model, through
+  `instructions` — to run the leaking form.
+
 ## [0.2.1] - 2026-08-19
 
 ### Fixed
