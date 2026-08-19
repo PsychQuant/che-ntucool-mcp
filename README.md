@@ -1,6 +1,6 @@
 # che-ntucool-mcp
 
-Read-only MCP server for **NTU COOL**, National Taiwan University's Canvas LMS
+MCP server for **NTU COOL**, National Taiwan University's Canvas LMS
 deployment (`cool.ntu.edu.tw`). Confirmed via live verification
 ([PsychQuant/ntu-claude-plugins#17](https://github.com/PsychQuant/ntu-claude-plugins/issues/17))
 that NTU COOL is a customized Canvas deployment with a fully open standard

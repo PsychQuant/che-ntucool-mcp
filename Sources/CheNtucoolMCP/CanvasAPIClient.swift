@@ -6,10 +6,10 @@ import Foundation
 /// (login URL structure, `ntu-cool/canvas-rce-api` fork, and a live curl probe
 /// against `/api/v1/courses` returning real course data).
 ///
-/// Scope for v0.1.0: read-only. Grade/announcement *writes* are deliberately not
-/// wired up yet — the risk of a misfire (wrong grade posted, wrong announcement
-/// sent to a live class) is a teaching incident, not a bug. Read tools ship first;
-/// write tools are a follow-up once the read path has been exercised for real.
+/// Scope: reads are unguarded. Grade/announcement *writes* landed in v0.2.0 but
+/// never fire on a model decision alone — the risk of a misfire (wrong grade
+/// posted, wrong announcement sent to a live class) is a teaching incident, not a
+/// bug. See WriteGate.swift for the two layers that gate them.
 public enum CanvasAPIError: Error, LocalizedError {
     case invalidResponse
     case httpError(Int, String)

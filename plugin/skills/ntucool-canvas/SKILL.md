@@ -21,7 +21,8 @@ allowed-tools:
 
 # NTU COOL (Canvas LMS) Query
 
-Read-only MCP for NTU COOL, National Taiwan University's Canvas LMS deployment.
+MCP for NTU COOL, National Taiwan University's Canvas LMS deployment. Reads are
+unguarded; grade and announcement writes are two-step and human-confirmed.
 Verified against a live course before ship (PsychQuant/ntu-claude-plugins#17) —
 NTU COOL is a customized Canvas deployment with a fully open standard Canvas
 REST API.

@@ -22,8 +22,11 @@ data from NTU COOL.
 
 ## Scope
 
-v0.1.0 is read-only. It cannot post grades, create announcements, or make any
-other write to your NTU COOL account.
+Reads (courses, assignments, announcements, submissions, files, roster) are
+unguarded. Writes — posting grades and publishing announcements — require a
+confirmation this server asks you for directly through your client's own
+dialog, plus a single-use token bound to the exact payload you were shown. A
+client that cannot show that dialog cannot write at all.
 
 ## Third-Party Services
 

@@ -1,7 +1,7 @@
 # che-ntucool-mcp (plugin)
 
 Claude Code plugin wrapping the `che-ntucool-mcp` binary — NTU COOL (Canvas
-LMS) read-only queries.
+LMS) queries, plus human-confirmed grade and announcement writes.
 
 ## Install
 

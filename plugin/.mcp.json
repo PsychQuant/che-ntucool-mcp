@@ -2,6 +2,6 @@
   "ntucool": {
     "type": "stdio",
     "command": "${CLAUDE_PLUGIN_ROOT}/bin/che-ntucool-mcp-wrapper.sh",
-    "description": "NTU COOL (Canvas LMS) read-only query server"
+    "description": "NTU COOL (Canvas LMS) query server — reads plus human-confirmed grade/announcement writes"
   }
 }

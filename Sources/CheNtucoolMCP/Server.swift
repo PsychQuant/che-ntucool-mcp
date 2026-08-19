@@ -1,7 +1,8 @@
 import Foundation
 import MCP
 
-/// NTU COOL (Canvas LMS) MCP Server — read-only queries against the Canvas API
+/// NTU COOL (Canvas LMS) MCP Server — queries and human-confirmed writes against
+/// the Canvas API
 /// deployed at `cool.ntu.edu.tw`. See PsychQuant/ntu-claude-plugins#17 for the
 /// verification that established this is safe/possible, and #18 for the tracking
 /// issue this project implements.
@@ -32,9 +33,10 @@ class NtucoolMCPServer {
     private static let serverInstructions = """
     # che-ntucool-mcp — NTU COOL (Canvas LMS) query server
 
-    Read-only queries against NTU COOL, National Taiwan University's Canvas LMS
-    deployment (`cool.ntu.edu.tw`). Requires a Canvas Personal Access Token stored
-    in the macOS keychain (service `ntu-cool-canvas`) — generate one at
+    Queries and human-confirmed writes against NTU COOL, National Taiwan
+    University's Canvas LMS deployment (`cool.ntu.edu.tw`). Requires a Canvas
+    Personal Access Token stored in the macOS keychain (service
+    `ntu-cool-canvas`) — generate one at
     NTU COOL → 帳戶 → 設定 → 新訪問令牌, then:
 
         security add-generic-password -s ntu-cool-canvas -a <login-id> -w <token>
