@@ -7,12 +7,34 @@ that NTU COOL is a customized Canvas deployment with a fully open standard
 Canvas REST API — every endpoint this server calls was curl-tested against a
 real course before any code was written.
 
-## Scope (v0.1.0)
+## Scope
 
-Read-only. No grade posting, no announcement creation — those are
-teaching-incident-risk operations deliberately left out of this first version.
-MVP covers the four use cases confirmed in #17: assignments, submissions/grades,
-announcements, and files.
+Reads are unguarded. **Writes — grades and announcements — are gated behind a
+human confirmation that this server asks for directly**, following the
+[Foresay](https://github.com/kiki830621/foresay) confirmation protocol.
+
+Foresay's rule is that an irreversible operation always takes the confirm
+branch, and these are irreversible in its sense: students are notified, and a
+notification cannot be un-sent. So there is no batch size below which the gate
+is skipped — scale is not what forces the branch, irreversibility is.
+
+Two independent layers, because they fail differently:
+
+| Layer | Catches | Cannot catch |
+|-------|---------|--------------|
+| **MCP elicitation** — the server asks *you* through the client's own dialog | The model skipping or fabricating approval — it cannot, the answer never passes through it | Whether the payload it displayed is the one that gets written |
+| **Payload-bound token** — a preview mints a single-use token bound to the exact payload it rendered | Approving `[85, 92, 78]` and writing `[85, 92, 87]` | Whether a human ever looked |
+
+Fail-closed throughout: no elicitation support, decline, cancel, or transport
+error all refuse the write. A client that cannot show a dialog cannot write at
+all.
+
+> **Why the server and not a skill.** Foresay's own case study names its biggest
+> limitation: *"Foresay is a protocol, not a runtime. If the host LLM doesn't
+> follow it, Foresay itself has no recourse."* That project could only reach for
+> a skill-level commitment device, because it did not control the client. MCP
+> elicitation gives the protocol a runtime — a step the model cannot rationalise
+> its way past under load, because it is not the model's step to take.
 
 ## Setup
 
@@ -60,6 +82,17 @@ claude mcp add --scope user --transport stdio che-ntucool-mcp -- ~/bin/CheNtucoo
 | `list_submissions` | Submission/grading status for every student in a course |
 | `list_files` | Files uploaded to a course |
 | `list_enrollments` | Enrollment roster for a course |
+| `preview_grade_change` | Step 1 of 2 — render grade changes, mint a token. Writes nothing |
+| `post_grades` | Step 2 of 2 — write grades after you confirm |
+| `preview_announcement` | Step 1 of 2 — render the announcement + audience, mint a token. Writes nothing |
+| `post_announcement` | Step 2 of 2 — publish after you confirm |
+
+### Environment
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `NTUCOOL_ACCOUNT` | `default` | Keychain account name holding the Canvas token |
+| `NTUCOOL_API_BASE` | `https://cool.ntu.edu.tw/api/v1` | Canvas API root. Overriding it is what makes the write gate testable against a stub instead of a live course |
 
 ## Development
 

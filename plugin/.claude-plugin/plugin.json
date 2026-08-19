@@ -1,8 +1,8 @@
 {
   "name": "che-ntucool-mcp",
-  "version": "0.1.0",
-  "binary_version": "0.1.0",
-  "description": "NTU COOL (Canvas LMS) read-only query MCP — courses, assignments, submissions, announcements, files, roster. Verified against a live NTU COOL course before ship (PsychQuant/ntu-claude-plugins#17).",
+  "version": "0.2.0",
+  "binary_version": "0.2.0",
+  "description": "NTU COOL (Canvas LMS) MCP — reads courses/assignments/submissions/announcements/files; grade + announcement writes gated by MCP elicitation and a payload-bound confirmation token (Foresay protocol).",
   "author": {
     "name": "Che Cheng"
   },

@@ -50,12 +50,20 @@ public struct CanvasAssignment: Codable {
     public let dueAt: String?
     public let pointsPossible: Double?
     public let submissionTypes: [String]?
+    /// Canvas posting policy. `true` means grades stay hidden from students
+    /// until explicitly posted, which is the one case where writing a grade is
+    /// *reversible* in Foresay's sense (nothing has been externally observed
+    /// yet). Optional and treated as "assume visible" when absent — an unknown
+    /// posting policy must fail toward the more cautious warning, not away
+    /// from it.
+    public let postManually: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, name
         case dueAt = "due_at"
         case pointsPossible = "points_possible"
         case submissionTypes = "submission_types"
+        case postManually = "post_manually"
     }
 }
 
@@ -151,7 +159,23 @@ public final class CanvasAPIClient {
         self.decoder = JSONDecoder()
     }
 
-    private func get<T: Decodable>(_ path: String, query: [String: String] = [:]) async throws -> T {
+    /// Percent-encoding for `application/x-www-form-urlencoded` bodies.
+    ///
+    /// `.urlQueryAllowed` is not sufficient on its own: it permits `+`, `&` and
+    /// `=`, all of which are structural in a form body. A grade of "85+" or an
+    /// announcement containing "&" would otherwise corrupt the request.
+    private static func formEscape(_ s: String) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+    }
+
+    private func send<T: Decodable>(
+        _ method: String,
+        _ path: String,
+        query: [String: String] = [:],
+        form: [(String, String)]? = nil
+    ) async throws -> T {
         var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty {
             components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
@@ -159,7 +183,17 @@ public final class CanvasAPIClient {
         guard let url = components.url else { throw CanvasAPIError.invalidResponse }
 
         var request = URLRequest(url: url)
+        request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        if let form {
+            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+            request.httpBody = Data(
+                form.map { "\(Self.formEscape($0.0))=\(Self.formEscape($0.1))" }
+                    .joined(separator: "&")
+                    .utf8
+            )
+        }
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -174,6 +208,10 @@ public final class CanvasAPIClient {
         } catch {
             throw CanvasAPIError.decodingError(String(describing: error))
         }
+    }
+
+    private func get<T: Decodable>(_ path: String, query: [String: String] = [:]) async throws -> T {
+        try await send("GET", path, query: query)
     }
 
     public func listCourses(perPage: Int = 50) async throws -> [CanvasCourse] {
@@ -204,5 +242,66 @@ public final class CanvasAPIClient {
 
     public func listEnrollments(courseId: Int, perPage: Int = 50) async throws -> [CanvasEnrollment] {
         try await get("courses/\(courseId)/enrollments", query: ["per_page": "\(perPage)"])
+    }
+
+    // MARK: - Detail reads
+    //
+    // These exist to make a *preview* worth reading. A confirmation that echoes
+    // back the ids the caller already supplied confirms nothing; the human needs
+    // the course name, the assignment name, and the grade each student holds
+    // right now in order to spot a mistake.
+
+    public func getCourse(courseId: Int) async throws -> CanvasCourse {
+        try await get("courses/\(courseId)")
+    }
+
+    public func getAssignment(courseId: Int, assignmentId: Int) async throws -> CanvasAssignment {
+        try await get("courses/\(courseId)/assignments/\(assignmentId)")
+    }
+
+    public func getSubmission(courseId: Int, assignmentId: Int, userId: Int) async throws -> CanvasSubmission {
+        try await get("courses/\(courseId)/assignments/\(assignmentId)/submissions/\(userId)")
+    }
+
+    public func getUser(userId: Int) async throws -> CanvasEnrollmentUser {
+        try await get("users/\(userId)")
+    }
+
+    // MARK: - Writes
+    //
+    // Nothing here performs its own confirmation. These are the raw effects; the
+    // gate that decides whether a human has approved them lives in the tool
+    // layer (Server.swift) so that the confirmation cannot be bypassed by
+    // calling a "lower-level" method. Keeping the policy out of this file is
+    // deliberate — but it does mean these must never be exposed as tools
+    // directly.
+
+    public func updateSubmissionGrade(
+        courseId: Int,
+        assignmentId: Int,
+        userId: Int,
+        grade: String
+    ) async throws -> CanvasSubmission {
+        try await send(
+            "PUT",
+            "courses/\(courseId)/assignments/\(assignmentId)/submissions/\(userId)",
+            form: [("submission[posted_grade]", grade)]
+        )
+    }
+
+    public func createAnnouncement(
+        courseId: Int,
+        title: String,
+        message: String
+    ) async throws -> CanvasAnnouncement {
+        try await send(
+            "POST",
+            "courses/\(courseId)/discussion_topics",
+            form: [
+                ("title", title),
+                ("message", message),
+                ("is_announcement", "true"),
+            ]
+        )
     }
 }

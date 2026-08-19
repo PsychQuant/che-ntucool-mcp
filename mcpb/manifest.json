@@ -1,17 +1,17 @@
 {
-  "author" : {
-    "name" : "Che Cheng",
-    "url" : "https://github.com/kiki830621"
+  "author": {
+    "name": "Che Cheng",
+    "url": "https://github.com/kiki830621"
   },
-  "compatibility" : {
-    "platforms" : [
+  "compatibility": {
+    "platforms": [
       "darwin"
     ]
   },
-  "description" : "NTU COOL (Canvas LMS) read-only query server — courses, assignments, submissions, announcements, files",
-  "display_name" : "NTU COOL",
-  "homepage" : "https://github.com/PsychQuant/che-ntucool-mcp",
-  "keywords" : [
+  "description": "NTU COOL (Canvas LMS) MCP — read courses/assignments/submissions/announcements/files, plus human-confirmed grade and announcement writes",
+  "display_name": "NTU COOL",
+  "homepage": "https://github.com/PsychQuant/che-ntucool-mcp",
+  "keywords": [
     "ntu-cool",
     "canvas-lms",
     "canvas",
@@ -19,56 +19,68 @@
     "lms",
     "ntu"
   ],
-  "license" : "MIT",
-  "long_description" : "Read-only MCP server for NTU COOL, National Taiwan University's Canvas LMS deployment. Confirmed via live verification (PsychQuant/ntu-claude-plugins#17) that NTU COOL is a customized Canvas deployment with a fully open standard Canvas REST API. Provides tools to list courses, assignments, announcements, submission/grading status, files, and course enrollments. Requires a Canvas Personal Access Token stored in the macOS keychain (service `ntu-cool-canvas`) — the token is never read from an environment variable or written to disk. v0.1.0 is deliberately read-only: grade posting and announcement creation are teaching-incident-risk operations left for a later, more deliberate version.",
-  "manifest_version" : "0.3",
-  "name" : "che-ntucool-mcp",
-  "privacy_policies" : [
+  "license": "MIT",
+  "long_description": "MCP server for NTU COOL, National Taiwan University's Canvas LMS deployment. Confirmed via live verification (PsychQuant/ntu-claude-plugins#17) that NTU COOL is a customized Canvas deployment with a fully open standard Canvas REST API. Reads courses, assignments, announcements, submission/grading status, files, and enrollments. Writes (grades, announcements) follow the Foresay confirmation protocol and are gated twice: the server asks the user directly via MCP elicitation (the model cannot skip or answer it), and a single-use token binds the write to the exact payload a human previewed, so approving one thing and writing another is refused. Fail-closed: a client without elicitation support cannot write at all. Requires a Canvas Personal Access Token in the macOS keychain (service `ntu-cool-canvas`) — never read from an environment variable or written to disk.",
+  "manifest_version": "0.3",
+  "name": "che-ntucool-mcp",
+  "privacy_policies": [
     "https://github.com/PsychQuant/che-ntucool-mcp/blob/main/mcpb/PRIVACY.md"
   ],
-  "repository" : {
-    "type" : "git",
-    "url" : "https://github.com/PsychQuant/che-ntucool-mcp.git"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PsychQuant/che-ntucool-mcp.git"
   },
-  "server" : {
-    "entry_point" : "server/CheNtucoolMCP",
-    "mcp_config" : {
-      "args" : [
-
-      ],
-      "command" : "${__dirname}/server/CheNtucoolMCP",
-      "env" : {
-
-      }
+  "server": {
+    "entry_point": "server/CheNtucoolMCP",
+    "mcp_config": {
+      "args": [],
+      "command": "${__dirname}/server/CheNtucoolMCP",
+      "env": {}
     },
-    "type" : "binary"
+    "type": "binary"
   },
-  "support" : "https://github.com/PsychQuant/che-ntucool-mcp/issues",
-  "tools" : [
+  "support": "https://github.com/PsychQuant/che-ntucool-mcp/issues",
+  "tools": [
     {
-      "description" : "List courses the token owner is enrolled in or teaching",
-      "name" : "list_courses"
+      "description": "List courses the token owner is enrolled in or teaching",
+      "name": "list_courses"
     },
     {
-      "description" : "List assignments in a course",
-      "name" : "list_assignments"
+      "description": "List assignments in a course",
+      "name": "list_assignments"
     },
     {
-      "description" : "List announcements posted in a course",
-      "name" : "list_announcements"
+      "description": "List announcements posted in a course",
+      "name": "list_announcements"
     },
     {
-      "description" : "List submission/grading status for every student in a course",
-      "name" : "list_submissions"
+      "description": "List submission/grading status for every student in a course",
+      "name": "list_submissions"
     },
     {
-      "description" : "List files uploaded to a course",
-      "name" : "list_files"
+      "description": "List files uploaded to a course",
+      "name": "list_files"
     },
     {
-      "description" : "List the enrollment roster for a course",
-      "name" : "list_enrollments"
+      "description": "List the enrollment roster for a course",
+      "name": "list_enrollments"
+    },
+    {
+      "description": "STEP 1 of 2 for posting grades. Renders current grade → new grade per student and returns a payload-bound confirmation_token. Performs no write.",
+      "name": "preview_grade_change"
+    },
+    {
+      "description": "STEP 2 of 2. Writes grades after asking the user to confirm in their own dialog. Requires the token from preview_grade_change with an identical payload. Students are notified; cannot be undone.",
+      "name": "post_grades"
+    },
+    {
+      "description": "STEP 1 of 2 for posting an announcement. Renders what would be published and to how many people, and returns a payload-bound confirmation_token. Performs no write.",
+      "name": "preview_announcement"
+    },
+    {
+      "description": "STEP 2 of 2. Publishes the announcement after asking the user to confirm in their own dialog. Requires the token from preview_announcement with identical title and message. Students are notified; cannot be un-sent.",
+      "name": "post_announcement"
     }
   ],
-  "version" : "0.1.0"
+  "version": "0.2.0"
 }
