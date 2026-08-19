@@ -7,6 +7,10 @@ import Security
 /// macOS login keychain, following the same generic-password pattern as
 /// `Rush/Auth.swift` (service "che-transport-tdx"). Users provision the token once
 /// via `security add-generic-password`, and every server process reads it fresh.
+///
+/// The documented incantation deliberately omits the value after `-w` so
+/// `security` prompts for it: `-w <token>` would expose the token in the process
+/// argument list for the lifetime of the command.
 enum CanvasAuthError: Error, LocalizedError {
     case itemNotFound
     case keychainError(OSStatus)
@@ -14,7 +18,7 @@ enum CanvasAuthError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .itemNotFound:
-            return "NTU COOL access token missing from keychain. Run: security add-generic-password -s \(CanvasAuth.defaultService) -a <login-id> -w <token>"
+            return "NTU COOL access token missing from keychain. Run: security add-generic-password -s \(CanvasAuth.defaultService) -a default -w   (omit the value; security will prompt)"
         case .keychainError(let status):
             return "Keychain error (OSStatus \(status))"
         }

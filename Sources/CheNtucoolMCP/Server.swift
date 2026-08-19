@@ -40,7 +40,11 @@ class NtucoolMCPServer {
     已核准的整合 → 新訪問令牌 (NTU's theme hides that section by default, so the
     user may report not seeing it), then:
 
-        security add-generic-password -s ntu-cool-canvas -a <login-id> -w <token>
+        security add-generic-password -s ntu-cool-canvas -a default -w
+
+    Omit the value after `-w`; security prompts for it, keeping the token out of
+    the shell history and the process argument list. The account name must be
+    `default` unless NTUCOOL_ACCOUNT is exported to match.
 
     ## Read tools
 

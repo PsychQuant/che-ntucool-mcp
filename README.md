@@ -51,12 +51,17 @@ all.
 2. Store it in the macOS keychain (never as an env var, never in a config file):
 
    ```bash
-   security add-generic-password -s ntu-cool-canvas -a <login-id> -w <token>
+   security add-generic-password -s ntu-cool-canvas -a default -w
    ```
 
-   `<login-id>` can be any label you choose — it's the keychain account name, not
-   validated against your NTU login. Override with `NTUCOOL_ACCOUNT` env var if
-   you use something other than `default`.
+   Omit the value after `-w`. `security` then prompts for it twice, so the token
+   never lands in your shell history or in the process argument list — with
+   `-w <token>` any local process can read it out of `ps` while the command runs.
+
+   The account name must be `default`; that is what the wrapper and the server
+   both look up. Use a different one only if you also export `NTUCOOL_ACCOUNT`
+   to match — the account name is a lookup key, not a label, and is never
+   validated against your NTU login.
 
 ## Installation
 

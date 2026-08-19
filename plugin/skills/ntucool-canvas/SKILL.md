@@ -32,8 +32,13 @@ REST API.
 Requires a Canvas Personal Access Token in the macOS keychain:
 
 ```bash
-security add-generic-password -s ntu-cool-canvas -a default -w '<token>'
+security add-generic-password -s ntu-cool-canvas -a default -w
 ```
+
+Omit the value after `-w` — `security` prompts for it twice, keeping the token
+out of the shell history and out of the process argument list. Never pass it as
+`-w '<token>'`, and never echo it into the conversation: Canvas shows the token
+once, and anything that reaches a transcript has to be revoked and reissued.
 
 Generate the token at NTU COOL → 帳戶 → 設定 → 已核准的整合 → 新訪問令牌 — NTU's
 theme hides that section by default, so the user may report not seeing it. If the
