@@ -137,82 +137,96 @@ public struct CanvasEnrollment: Codable {
 
 // MARK: - Client
 
-public final class CanvasAPIClient {
-    private let baseURL: URL
-    private let token: String
-    private let session: URLSession
-    private let decoder: JSONDecoder
+/// Wraps a `CanvasTransport` with JSON encoding, error mapping and
+/// pagination. Credential choice lives entirely in the transport (see
+/// `AutoTransport`); this class never sees a token.
+public final class CanvasAPIClient: @unchecked Sendable {
+    public let transport: CanvasTransport
+    private let decoder = JSONDecoder()
+    private let encoder = JSONEncoder()
 
-    /// - Parameters:
-    ///   - baseURL: Canvas API root, e.g. `https://cool.ntu.edu.tw/api/v1`.
-    ///     Kept configurable (not hardcoded) so the client can be pointed at
-    ///     another Canvas instance during testing without a code change.
-    ///   - token: Personal Access Token, read by the caller from Keychain
-    ///     (`CanvasAuth.read`) — never accepted as a literal here to keep this
-    ///     class free of any credential-sourcing decision.
-    public init(baseURL: URL = URL(string: "https://cool.ntu.edu.tw/api/v1")!, token: String) {
-        self.baseURL = baseURL
-        self.token = token
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        self.session = URLSession(configuration: config)
-        self.decoder = JSONDecoder()
+    public init(transport: CanvasTransport) {
+        self.transport = transport
     }
 
-    /// Percent-encoding for `application/x-www-form-urlencoded` bodies.
-    ///
-    /// `.urlQueryAllowed` is not sufficient on its own: it permits `+`, `&` and
-    /// `=`, all of which are structural in a form body. A grade of "85+" or an
-    /// announcement containing "&" would otherwise corrupt the request.
-    private static func formEscape(_ s: String) -> String {
-        var allowed = CharacterSet.alphanumerics
-        allowed.insert(charactersIn: "-._~")
-        return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+    /// Bearer-token client (the pre-ladder behaviour). Kept so callers that
+    /// already hold a token — and tests pointing at another Canvas instance
+    /// via `baseURL` — need no change.
+    public convenience init(baseURL: URL = CanvasURL.defaultAPIBase, token: String) {
+        self.init(transport: TokenTransport(token: token, baseURL: baseURL))
     }
 
-    private func send<T: Decodable>(
+    // MARK: Generic requests
+
+    /// One request, raw JSON back. HTTP ≥ 400 becomes `CanvasAPIError.httpError`.
+    public func request(
         _ method: String,
-        _ path: String,
+        path: String,
         query: [String: String] = [:],
-        form: [(String, String)]? = nil
-    ) async throws -> T {
-        var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
-        if !query.isEmpty {
-            components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+        json: Encodable? = nil
+    ) async throws -> Data {
+        let body = try json.map { try encoder.encode(AnyEncodable($0)) }
+        let response = try await transport.send(method: method, path: path, query: query, jsonBody: body)
+        guard response.status < 400 else {
+            let text = String(data: response.body, encoding: .utf8) ?? "<non-utf8 body>"
+            throw CanvasAPIError.httpError(response.status, text)
         }
-        guard let url = components.url else { throw CanvasAPIError.invalidResponse }
+        return response.body
+    }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    /// GET every page of a list endpoint by following `Link: rel="next"`,
+    /// asking for 100 per page. Returns the concatenated JSON objects.
+    public func paginate(path: String, query: [String: String] = [:]) async throws -> [[String: Any]] {
+        var items: [[String: Any]] = []
+        for page in try await paginatePages(path: path, query: query) {
+            guard let array = try JSONSerialization.jsonObject(with: page) as? [[String: Any]] else {
+                throw CanvasAPIError.decodingError("expected a JSON array from \(path)")
+            }
+            items.append(contentsOf: array)
+        }
+        return items
+    }
 
-        if let form {
-            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-            request.httpBody = Data(
-                form.map { "\(Self.formEscape($0.0))=\(Self.formEscape($0.1))" }
-                    .joined(separator: "&")
-                    .utf8
-            )
+    /// Typed variant of `paginate`.
+    public func paginateDecoded<T: Decodable>(path: String, query: [String: String] = [:]) async throws -> [T] {
+        var items: [T] = []
+        for page in try await paginatePages(path: path, query: query) {
+            items.append(contentsOf: try decode([T].self, from: page))
         }
+        return items
+    }
 
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw CanvasAPIError.invalidResponse
+    /// Raw pages, in order. The first request carries `query` plus
+    /// `per_page=100`; subsequent ones use the server's `next` URL verbatim.
+    public func paginatePages(path: String, query: [String: String] = [:]) async throws -> [Data] {
+        var pages: [Data] = []
+        var firstQuery = query
+        firstQuery["per_page"] = firstQuery["per_page"] ?? "100"
+        var next: (path: String, query: [String: String])? = (path, firstQuery)
+        while let current = next {
+            let response = try await transport.send(method: "GET", path: current.path, query: current.query, jsonBody: nil)
+            guard response.status < 400 else {
+                throw CanvasAPIError.httpError(response.status, String(data: response.body, encoding: .utf8) ?? "<non-utf8 body>")
+            }
+            pages.append(response.body)
+            next = response.nextURL.map { ($0, [:]) }
         }
-        guard (200...299).contains(httpResponse.statusCode) else {
-            let body = String(data: data, encoding: .utf8) ?? "<non-utf8 body>"
-            throw CanvasAPIError.httpError(httpResponse.statusCode, body)
-        }
+        return pages
+    }
+
+    private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         do {
-            return try decoder.decode(T.self, from: data)
+            return try decoder.decode(type, from: data)
         } catch {
             throw CanvasAPIError.decodingError(String(describing: error))
         }
     }
 
     private func get<T: Decodable>(_ path: String, query: [String: String] = [:]) async throws -> T {
-        try await send("GET", path, query: query)
+        try decode(T.self, from: try await request("GET", path: path, query: query))
     }
+
+    // MARK: Typed reads (thin wrappers)
 
     public func listCourses(perPage: Int = 50) async throws -> [CanvasCourse] {
         try await get("courses", query: ["per_page": "\(perPage)"])
@@ -282,11 +296,13 @@ public final class CanvasAPIClient {
         userId: Int,
         grade: String
     ) async throws -> CanvasSubmission {
-        try await send(
+        struct Payload: Encodable { let submission: [String: String] }
+        let data = try await request(
             "PUT",
-            "courses/\(courseId)/assignments/\(assignmentId)/submissions/\(userId)",
-            form: [("submission[posted_grade]", grade)]
+            path: "courses/\(courseId)/assignments/\(assignmentId)/submissions/\(userId)",
+            json: Payload(submission: ["posted_grade": grade])
         )
+        return try decode(CanvasSubmission.self, from: data)
     }
 
     public func createAnnouncement(
@@ -294,14 +310,23 @@ public final class CanvasAPIClient {
         title: String,
         message: String
     ) async throws -> CanvasAnnouncement {
-        try await send(
+        struct Payload: Encodable {
+            let title: String
+            let message: String
+            let is_announcement: Bool
+        }
+        let data = try await request(
             "POST",
-            "courses/\(courseId)/discussion_topics",
-            form: [
-                ("title", title),
-                ("message", message),
-                ("is_announcement", "true"),
-            ]
+            path: "courses/\(courseId)/discussion_topics",
+            json: Payload(title: title, message: message, is_announcement: true)
         )
+        return try decode(CanvasAnnouncement.self, from: data)
     }
+}
+
+/// Type-erasing box so `request(json:)` can take any `Encodable`.
+struct AnyEncodable: Encodable {
+    private let encodeImpl: (Encoder) throws -> Void
+    init(_ value: Encodable) { encodeImpl = value.encode }
+    func encode(to encoder: Encoder) throws { try encodeImpl(encoder) }
 }

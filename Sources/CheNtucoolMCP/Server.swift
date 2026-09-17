@@ -81,6 +81,7 @@ class NtucoolMCPServer {
 
     init() async {
         self.keychainAccount = ProcessInfo.processInfo.environment["NTUCOOL_ACCOUNT"] ?? "default"
+        self.transportLadder = Self.makeTransport(keychainAccount: keychainAccount)
         self.server = Server(
             name: "che-ntucool-mcp",
             version: "0.2.0",
@@ -113,18 +114,30 @@ class NtucoolMCPServer {
 
     // MARK: - Client construction
 
+    /// One transport per server process: the credential ladder decides once
+    /// (token → Safari) and every tool call after that reuses the decision.
+    private let transportLadder: CanvasTransport
+
+    private static func makeTransport(keychainAccount: String) -> CanvasTransport {
+        // `NTUCOOL_API_BASE` points the bearer transport at a stub so the write
+        // gate can be verified end-to-end — that override is token-only, since
+        // the Safari path is by construction same-origin with cool.ntu.edu.tw.
+        let baseURL = ProcessInfo.processInfo.environment["NTUCOOL_API_BASE"]
+            .flatMap(URL.init(string:)) ?? CanvasURL.defaultAPIBase
+        return AutoTransport(
+            tokenProvider: {
+                do {
+                    return try CanvasAuth.read(account: keychainAccount)
+                } catch CanvasAuthError.itemNotFound {
+                    return nil
+                }
+            },
+            tokenTransportFactory: { TokenTransport(token: $0, baseURL: baseURL) }
+        )
+    }
+
     private func makeClient() throws -> CanvasAPIClient {
-        let token = try CanvasAuth.read(account: keychainAccount)
-        // `CanvasAPIClient` documents its baseURL as configurable so it can be
-        // pointed elsewhere for testing — but that was unreachable while this
-        // hardcoded the default. Exposing it makes the write gate verifiable
-        // end-to-end against a stub, which is the difference between believing
-        // the gate holds and having watched it hold.
-        if let override = ProcessInfo.processInfo.environment["NTUCOOL_API_BASE"],
-           let url = URL(string: override) {
-            return CanvasAPIClient(baseURL: url, token: token)
-        }
-        return CanvasAPIClient(token: token)
+        CanvasAPIClient(transport: transportLadder)
     }
 
     // MARK: - Handler registration
