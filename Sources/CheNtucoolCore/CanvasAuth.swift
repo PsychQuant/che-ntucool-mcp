@@ -11,11 +11,11 @@ import Security
 /// The documented incantation deliberately omits the value after `-w` so
 /// `security` prompts for it: `-w <token>` would expose the token in the process
 /// argument list for the lifetime of the command.
-enum CanvasAuthError: Error, LocalizedError {
+public enum CanvasAuthError: Error, LocalizedError {
     case itemNotFound
     case keychainError(OSStatus)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .itemNotFound:
             return "NTU COOL access token missing from keychain. Run: security add-generic-password -s \(CanvasAuth.defaultService) -a default -w   (omit the value; security will prompt)"
@@ -25,12 +25,12 @@ enum CanvasAuthError: Error, LocalizedError {
     }
 }
 
-enum CanvasAuth {
+public enum CanvasAuth {
     /// Keychain service name. Mirrors the naming convention documented in
     /// CLAUDE.md's SSH/credential tables (`<system>-<purpose>` service handles).
-    static let defaultService = "ntu-cool-canvas"
+    public static let defaultService = "ntu-cool-canvas"
 
-    static func read(service: String = defaultService, account: String) throws -> String {
+    public static func read(service: String = defaultService, account: String) throws -> String {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -50,7 +50,7 @@ enum CanvasAuth {
         return value
     }
 
-    static func save(service: String = defaultService, account: String, value: String) throws {
+    public static func save(service: String = defaultService, account: String, value: String) throws {
         let data = Data(value.utf8)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

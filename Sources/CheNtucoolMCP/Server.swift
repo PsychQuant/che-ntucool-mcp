@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import CheNtucoolCore
 
 /// NTU COOL (Canvas LMS) MCP Server — queries and human-confirmed writes against
 /// the Canvas API

@@ -1,5 +1,5 @@
 import XCTest
-@testable import CheNtucoolMCP
+@testable import CheNtucoolCore
 
 final class CanvasAPIClientTests: XCTestCase {
     func testCourseDecodingIgnoresUnknownFields() throws {
