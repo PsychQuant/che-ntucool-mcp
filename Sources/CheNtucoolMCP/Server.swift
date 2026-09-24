@@ -133,7 +133,10 @@ class NtucoolMCPServer {
         return AutoTransport(
             tokenProvider: {
                 do {
-                    return try CanvasAuth.read(account: keychainAccount)
+                    // Always headless (spawned over stdio): never wait on a
+                    // keychain dialog; .uiRequired propagates and the ladder
+                    // uses Safari.
+                    return try CanvasAuth.read(account: keychainAccount, allowUI: false)
                 } catch CanvasAuthError.itemNotFound {
                     return nil
                 }

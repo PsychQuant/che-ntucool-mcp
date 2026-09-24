@@ -22,6 +22,9 @@ public enum CourseSessionError: Error, LocalizedError, Equatable {
     /// has already been unpublished again; the error says so loudly because
     /// students may have seen it in between.
     case publishedUnexpectedly(String, Int)
+    /// Came back published and the corrective unpublish did not take (or
+    /// failed). It is live now; a human must take it down.
+    case unpublishFailed(String, Int)
 
     public var errorDescription: String? {
         switch self {
@@ -34,7 +37,9 @@ public enum CourseSessionError: Error, LocalizedError, Equatable {
         case .notFound(let what): return "找不到 \(what)"
         case .unexpectedResponse(let what): return "Canvas 回應格式不符：\(what)"
         case .publishedUnexpectedly(let kind, let id):
-            return "\(kind) \(id) 建立時要求未發布，Canvas 卻回報已發布；已立即取消發布，但學生可能在這之間看到。請到 COOL 確認"
+            return "\(kind) \(id) 建立時要求未發布，Canvas 卻回報已發布；已立即取消發布並確認，但學生可能在這之間看到。請到 COOL 確認"
+        case .unpublishFailed(let kind, let id):
+            return "⚠ \(kind) \(id) 建立後是已發布狀態，取消發布沒有成功（或無法確認）——學生現在看得到。請立刻到 COOL 手動取消發布"
         }
     }
 }
@@ -129,9 +134,15 @@ public final class CourseSession {
             throw CourseSessionError.unexpectedResponse("\(kind) id")
         }
         if obj["published"] as? Bool == true {
-            try await write("PUT", path(id), body: [wrapper: ["published": false]],
-                            summary: "取消發布剛建立卻被 Canvas 發布的 \(kind) \(id)")
-            throw CourseSessionError.publishedUnexpectedly(kind, id)
+            let confirmed: Bool
+            do {
+                let reply = try await write("PUT", path(id), body: [wrapper: ["published": false]],
+                                            summary: "取消發布剛建立卻被 Canvas 發布的 \(kind) \(id)")
+                confirmed = (reply as? [String: Any])?["published"] as? Bool == false
+            } catch {
+                confirmed = false
+            }
+            throw confirmed ? CourseSessionError.publishedUnexpectedly(kind, id) : CourseSessionError.unpublishFailed(kind, id)
         }
         return id
     }
@@ -145,7 +156,8 @@ public final class CourseSession {
         // include[]=items; fetch those separately instead of showing it empty.
         var modules: [[String: Any]] = []
         for var m in try await client.paginate(path: "\(course)/modules", query: ["include[]": "items"]) {
-            if m["items"] == nil, let id = m["id"] as? Int, (m["items_count"] as? Int ?? 0) > 0 {
+            let embedded = (m["items"] as? [Any])?.count ?? 0
+            if let id = m["id"] as? Int, let count = m["items_count"] as? Int, count > embedded {
                 m["items"] = try await client.paginate(path: "\(course)/modules/\(id)/items")
             }
             modules.append(m)

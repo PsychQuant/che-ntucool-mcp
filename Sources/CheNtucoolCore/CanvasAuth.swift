@@ -34,6 +34,8 @@ public enum CanvasAuth {
     /// Keychain service name. Mirrors the naming convention documented in
     /// CLAUDE.md's SSH/credential tables (`<system>-<purpose>` service handles).
     public static let defaultService = "ntu-cool-canvas"
+    /// Serializes the process-global interaction toggle across concurrent reads.
+    private static let interactionLock = NSLock()
 
     /// - Parameter allowUI: false makes the read fail with `.uiRequired`
     ///   instead of showing an "allow access" dialog. An unsigned or rebuilt
@@ -47,10 +49,16 @@ public enum CanvasAuth {
         // does; it is process-global, so restore it right after the one read.
         var previous: DarwinBoolean = true
         if !allowUI {
+            interactionLock.lock()
             SecKeychainGetUserInteractionAllowed(&previous)
             SecKeychainSetUserInteractionAllowed(false)
         }
-        defer { if !allowUI { SecKeychainSetUserInteractionAllowed(previous.boolValue) } }
+        defer {
+            if !allowUI {
+                SecKeychainSetUserInteractionAllowed(previous.boolValue)
+                interactionLock.unlock()
+            }
+        }
         let status = SecItemCopyMatching(query(service: service, account: account, allowUI: allowUI) as CFDictionary, &item)
         guard status == errSecSuccess else { throw classify(status) }
         guard let data = item as? Data, let value = String(data: data, encoding: .utf8) else {

@@ -86,7 +86,13 @@ final class ReadBackPublishedTests: XCTestCase {
 
     /// If Canvas publishes a new item anyway, take it down at once and fail loudly.
     func testAddURLThatCameBackPublishedIsUnpublishedAndReported() async {
-        let t = RecordingTransport { m, _ in m == "GET" ? (200, "[]") : (200, #"{"id":5,"published":true}"#) }
+        let t = RecordingTransport { m, _ in
+            switch m {
+            case "GET": return (200, "[]")
+            case "PUT": return (200, #"{"id":5,"published":false}"#)
+            default: return (200, #"{"id":5,"published":true}"#)
+            }
+        }
         do {
             _ = try await CourseSession(client: CanvasAPIClient(transport: t), config: config, gate: { _ in })
                 .addURL(week: "W03", title: "t", url: "https://x.example", publish: false)
@@ -100,7 +106,9 @@ final class ReadBackPublishedTests: XCTestCase {
     }
 
     func testCreatedAssignmentThatCameBackPublishedIsReported() async {
-        let t = RecordingTransport { m, _ in m == "GET" ? (200, "[]") : (200, #"{"id":8,"published":true}"#) }
+        let t = RecordingTransport { m, _ in
+            m == "GET" ? (200, "[]") : m == "PUT" ? (200, #"{"id":8,"published":false}"#) : (200, #"{"id":8,"published":true}"#)
+        }
         do {
             _ = try await CourseSession(client: CanvasAPIClient(transport: t), config: config, gate: { _ in })
                 .createAssignment(fields: ["name": "A"], week: nil)
@@ -151,5 +159,94 @@ final class KeychainNoUITests: XCTestCase {
         XCTAssertEqual(CanvasAuth.classify(errSecInteractionNotAllowed), .uiRequired)
         XCTAssertEqual(CanvasAuth.classify(errSecAuthFailed), .uiRequired)
         XCTAssertEqual(CanvasAuth.classify(errSecItemNotFound), .itemNotFound)
+    }
+}
+
+
+/// idd-verify round 2 findings on #1.
+final class VerifyRound2Tests: XCTestCase {
+    private let config = CourseConfig(courseId: 1, modules: ["W03": 900])
+    private let tabs = "1\t1\t1\thttps://cool.ntu.edu.tw/\n1\t2\t0\thttps://cool.ntu.edu.tw/courses/1\n"
+
+    /// The corrective unpublish must be confirmed, not assumed.
+    func testUnpublishThatDidNotTakeIsReportedAsFailed() async {
+        let t = RecordingTransport { m, _ in m == "GET" ? (200, "[]") : (200, #"{"id":5,"published":true}"#) }
+        do {
+            _ = try await CourseSession(client: CanvasAPIClient(transport: t), config: config, gate: { _ in })
+                .addURL(week: "W03", title: "t", url: "https://x.example", publish: false)
+            XCTFail("expected unpublishFailed")
+        } catch let e as CourseSessionError {
+            XCTAssertEqual(e, .unpublishFailed("module item", 5))
+        } catch { XCTFail("\(error)") }
+    }
+
+    func testUnpublishPUTErrorIsReportedAsFailed() async {
+        let t = RecordingTransport { m, _ in
+            m == "GET" ? (200, "[]") : m == "PUT" ? (500, "boom") : (200, #"{"id":5,"published":true}"#)
+        }
+        do {
+            _ = try await CourseSession(client: CanvasAPIClient(transport: t), config: config, gate: { _ in })
+                .addURL(week: "W03", title: "t", url: "https://x.example", publish: false)
+            XCTFail("expected unpublishFailed")
+        } catch let e as CourseSessionError {
+            XCTAssertEqual(e, .unpublishFailed("module item", 5))
+        } catch { XCTFail("\(error)") }
+    }
+
+    /// A 200 without a usable id must not lock the tab unpinned.
+    func testProbeWithoutAnIntegerIDSkipsTheTab() async {
+        let runner = FakeScriptRunner(tabTable: tabs)
+        runner.responses["1/1/GET"] = FakeScriptRunner.envelope(status: 200, text: #"{"id":"42"}"#)
+        runner.responses["1/2/GET"] = FakeScriptRunner.envelope(status: 200, text: #"{"name":"x"}"#)
+        let transport = SafariSessionTransport(runner: runner)
+        do {
+            _ = try await transport.send(method: "GET", path: "courses", query: [:], jsonBody: nil)
+            XCTFail("expected noSafariSession")
+        } catch let e as CanvasTransportError {
+            guard case .noSafariSession = e else { return XCTFail("\(e)") }
+        } catch { XCTFail("\(error)") }
+        XCTAssertNil(transport.pinnedUserID)
+    }
+
+    /// Same tab, different account: writes re-check the owner inside the one script.
+    func testWriteScriptChecksTheOwnerBeforeSending() {
+        let js = SafariSessionTransport.javascript(method: "PUT", sameOriginPath: "/api/v1/x", jsonBody: Data("{}".utf8),
+                                                   origin: "https://cool.ntu.edu.tw", expectedUserID: 42)
+        let who = js.range(of: "/api/v1/users/self")
+        let open = js.range(of: #"x.open("PUT""#)
+        XCTAssertNotNil(who); XCTAssertNotNil(open)
+        XCTAssertLessThan(who!.lowerBound, open!.lowerBound)
+        XCTAssertNil(SafariSessionTransport.javascript(method: "GET", sameOriginPath: "/api/v1/x", jsonBody: nil,
+                                                        origin: "https://cool.ntu.edu.tw", expectedUserID: 42)
+            .range(of: "/api/v1/users/self"), "reads skip the extra round trip")
+    }
+
+    func testWrongOwnerEnvelopeIsAnIdentityMismatchNotAReprobe() {
+        let raw = FakeScriptRunner.envelope(status: -2, text: #"{"id":999,"name":"Other"}"#)
+        XCTAssertThrowsError(try SafariSessionTransport.parseEnvelope(raw, expectedUserID: 42)) {
+            XCTAssertEqual($0 as? CanvasTransportError, .identityMismatch(expected: 42, actual: 999, name: "Other"))
+        }
+    }
+
+    func testCSVQuotesCRLF() {
+        XCTAssertEqual(CSV.field("a\r\nb"), "\"a\r\nb\"")
+    }
+
+    func testTrailingSlashBaseStillAcceptsItsOwnPages() {
+        let base = URL(string: "https://cool.ntu.edu.tw/api/v1/")!
+        XCTAssertNoThrow(try CanvasURL.checkedResolve(path: "https://cool.ntu.edu.tw/api/v1/courses?page=2", query: [:], base: base))
+        XCTAssertThrowsError(try CanvasURL.checkedResolve(path: "https://cool.ntu.edu.tw/api/v10/x", query: [:], base: base))
+    }
+
+    func testStateBackfillsWhenItemsIsEmptyButCountIsNot() async throws {
+        let t = RecordingTransport { _, p in
+            switch p {
+            case "courses/1/modules": return (200, #"[{"id":900,"items_count":1,"items":[]}]"#)
+            case "courses/1/modules/900/items": return (200, #"[{"id":1}]"#)
+            default: return (200, "[]")
+            }
+        }
+        let state = try await CourseSession(client: CanvasAPIClient(transport: t), config: config, gate: { _ in }).state()
+        XCTAssertEqual(((state["modules"] as! [[String: Any]])[0]["items"] as? [[String: Any]])?.count, 1)
     }
 }

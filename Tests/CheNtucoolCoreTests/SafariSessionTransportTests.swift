@@ -39,7 +39,9 @@ final class FakeScriptRunner: ScriptRunner, @unchecked Sendable {
     }
 
     static func method(of script: String) -> String {
-        for m in ["GET", "POST", "PUT", "DELETE"] where script.contains("open(\\\"\(m)\\\"") { return m }
+        // The request itself is `x.open`; a write script also carries the owner
+        // check's `w.open("GET"…)` before it.
+        for m in ["GET", "POST", "PUT", "DELETE"] where script.contains("x.open(\\\"\(m)\\\"") { return m }
         return "?"
     }
 
