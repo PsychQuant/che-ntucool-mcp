@@ -51,7 +51,7 @@ public enum TimeInput {
         return "\(out.string(from: date)) \(offset)"
     }
 
-    static func timeZone(_ offset: String) -> TimeZone? {
+    public static func timeZone(_ offset: String) -> TimeZone? {
         guard offset.count == 6, let sign = offset.first, sign == "+" || sign == "-",
               let h = Int(offset.dropFirst().prefix(2)), let m = Int(offset.suffix(2)) else { return nil }
         return TimeZone(secondsFromGMT: (sign == "-" ? -1 : 1) * (h * 3600 + m * 60))

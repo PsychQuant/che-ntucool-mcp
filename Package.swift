@@ -44,6 +44,10 @@ let package = Package(
             dependencies: ["CheNtucoolCore"]
         ),
         .testTarget(
+            name: "CheNtucoolCLITests",
+            dependencies: ["che-ntucool", "CheNtucoolCore"]
+        ),
+        .testTarget(
             name: "CheNtucoolMCPTests",
             dependencies: [
                 "CheNtucoolMCP",

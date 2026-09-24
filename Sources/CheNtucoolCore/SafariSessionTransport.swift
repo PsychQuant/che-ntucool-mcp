@@ -189,7 +189,10 @@ public final class SafariSessionTransport: CanvasTransport, @unchecked Sendable 
         return parts.joined()
     }
 
+    /// The separator is `character id 9`, set before the `tell` block:
+    /// inside it, `tab` means Safari's tab class and would print as "tab".
     static let tabListScript = """
+    set sep to (character id 9)
     tell application "Safari"
     	set out to ""
     	repeat with w from 1 to (count of windows)
@@ -200,7 +203,7 @@ public final class SafariSessionTransport: CanvasTransport, @unchecked Sendable 
     		repeat with t from 1 to (count of tabs of window w)
     			set isCur to "0"
     			if t = curIdx then set isCur to "1"
-    			set out to out & w & tab & t & tab & isCur & tab & (URL of tab t of window w) & linefeed
+    			set out to out & w & sep & t & sep & isCur & sep & (URL of tab t of window w) & linefeed
     		end repeat
     	end repeat
     	return out

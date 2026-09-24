@@ -159,4 +159,15 @@ final class SafariSessionTransportTests: XCTestCase {
             XCTFail("unexpected \(error)")
         }
     }
+
+    /// Inside `tell application "Safari"` the word `tab` is Safari's tab
+    /// class, so `& tab &` emits the literal text "tab" and every line fails
+    /// `parseTabList` — found in the live acceptance run (#1), invisible to
+    /// the canned-output tests above.
+    func testTabListScriptUsesARealTabCharacter() {
+        XCTAssertFalse(SafariSessionTransport.tabListScript.contains("& tab &"))
+        XCTAssertTrue(SafariSessionTransport.tabListScript.contains("character id 9"))
+        XCTAssertTrue(SafariSessionTransport.parseTabList("5tab29tab1tabhttps://cool.ntu.edu.tw/x\n").isEmpty,
+                      "documents the failure mode the script change fixes")
+    }
 }
