@@ -18,6 +18,10 @@ public enum CourseSessionError: Error, LocalizedError, Equatable {
     case unknownOptionSet(String, known: [String])
     case notFound(String)
     case unexpectedResponse(String)
+    /// Created with `published: false` but Canvas reports it published. It
+    /// has already been unpublished again; the error says so loudly because
+    /// students may have seen it in between.
+    case publishedUnexpectedly(String, Int)
 
     public var errorDescription: String? {
         switch self {
@@ -29,6 +33,8 @@ public enum CourseSessionError: Error, LocalizedError, Equatable {
             return "ntucool.json 的 quiz_option_sets 沒有「\(name)」；已知：\(known.sorted().joined(separator: ", "))"
         case .notFound(let what): return "找不到 \(what)"
         case .unexpectedResponse(let what): return "Canvas 回應格式不符：\(what)"
+        case .publishedUnexpectedly(let kind, let id):
+            return "\(kind) \(id) 建立時要求未發布，Canvas 卻回報已發布；已立即取消發布，但學生可能在這之間看到。請到 COOL 確認"
         }
     }
 }
@@ -116,12 +122,35 @@ public final class CourseSession {
         return String(decoding: data, as: UTF8.self)
     }
 
+    /// Read back what Canvas created. Anything that came back published
+    /// despite `published: false` is unpublished at once and reported.
+    private func ensureUnpublished(_ created: Any, kind: String, path: (Int) -> String, wrapper: String) async throws -> Int {
+        guard let obj = created as? [String: Any], let id = obj["id"] as? Int else {
+            throw CourseSessionError.unexpectedResponse("\(kind) id")
+        }
+        if obj["published"] as? Bool == true {
+            try await write("PUT", path(id), body: [wrapper: ["published": false]],
+                            summary: "取消發布剛建立卻被 Canvas 發布的 \(kind) \(id)")
+            throw CourseSessionError.publishedUnexpectedly(kind, id)
+        }
+        return id
+    }
+
     // MARK: State
 
     /// Modules (with items), discussions, quizzes, assignments and files.
     public func state() async throws -> [String: Any] {
         var out: [String: Any] = [:]
-        out["modules"] = try await client.paginate(path: "\(course)/modules", query: ["include[]": "items"])
+        // Canvas leaves `items` out of a module with too many of them even with
+        // include[]=items; fetch those separately instead of showing it empty.
+        var modules: [[String: Any]] = []
+        for var m in try await client.paginate(path: "\(course)/modules", query: ["include[]": "items"]) {
+            if m["items"] == nil, let id = m["id"] as? Int, (m["items_count"] as? Int ?? 0) > 0 {
+                m["items"] = try await client.paginate(path: "\(course)/modules/\(id)/items")
+            }
+            modules.append(m)
+        }
+        out["modules"] = modules
         for kind in ["discussion_topics", "quizzes", "assignments", "files"] {
             out[kind] = try await client.paginate(path: "\(course)/\(kind)")
         }
@@ -141,9 +170,9 @@ public final class CourseSession {
         var itemID = existing.first { $0["type"] as? String == "ExternalUrl" && $0["external_url"] as? String == url }?["id"] as? Int
         if itemID == nil {
             let created = try await write("POST", itemsPath, body: ["module_item": [
-                "type": "ExternalUrl", "title": title, "external_url": url, "new_tab": true,
+                "type": "ExternalUrl", "title": title, "external_url": url, "new_tab": true, "published": false,
             ]], summary: "在 \(week) 模組加外部連結「\(title)」（未發布）")
-            itemID = (created as? [String: Any])?["id"] as? Int
+            itemID = try await ensureUnpublished(created, kind: "module item", path: { "\(itemsPath)/\($0)" }, wrapper: "module_item")
         }
         guard let itemID else { throw CourseSessionError.unexpectedResponse("module item id") }
         if publish {
@@ -223,7 +252,7 @@ public final class CourseSession {
         }
         let created = try await write("POST", "\(course)/quizzes", body: ["quiz": quiz],
                                       summary: "建立測驗「\(spec.title)」（未發布，\(parsed.questions.count) 題）")
-        guard let quizID = (created as? [String: Any])?["id"] as? Int else { throw CourseSessionError.unexpectedResponse("quiz id") }
+        let quizID = try await ensureUnpublished(created, kind: "quiz", path: { "\(self.course)/quizzes/\($0)" }, wrapper: "quiz")
         for (q, body) in zip(parsed.questions, bodies) {
             try await write("POST", "\(course)/quizzes/\(quizID)/questions", body: body,
                             summary: "第 \(q.number) 題（答案 \(q.answer)）", detail: "")
@@ -291,7 +320,7 @@ public final class CourseSession {
         }
         let created = try await write("POST", "\(course)/assignments", body: ["assignment": body],
                                       summary: "建立作業「\(name)」（未發布）")
-        guard let id = (created as? [String: Any])?["id"] as? Int else { throw CourseSessionError.unexpectedResponse("assignment id") }
+        let id = try await ensureUnpublished(created, kind: "assignment", path: { "\(self.course)/assignments/\($0)" }, wrapper: "assignment")
         if let week { try await addItemIfMissing(moduleID: try moduleID(week: week), type: "Assignment", contentID: id, title: name) }
         return id
     }

@@ -61,9 +61,12 @@ public struct QuizMarkdown: Equatable, Sendable {
             let end = i + 1 < matches.count ? matches[i + 1].range.location : (body as NSString).length
             let chunk = (body as NSString).substring(with: NSRange(location: start, length: end - start))
             let lines = chunk.split(separator: "\n").map(String.init).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-            guard let stem = lines.first else { continue }
-            var html = "<p>\(Markdown.inline(stem))</p>"
-            for ref in lines.dropFirst() where ref.hasPrefix("> ") {
+            guard !lines.isEmpty else { continue }
+            // Every non-reference line is stem text; a stem spread over several
+            // lines keeps all of them rather than only the first.
+            var html = lines.filter { !$0.hasPrefix("> ") && $0.trimmingCharacters(in: .whitespaces) != "---" }
+                .map { "<p>\(Markdown.inline($0))</p>" }.joined()
+            for ref in lines where ref.hasPrefix("> ") {
                 let text = String(ref.dropFirst(2))
                 let clean = comment.stringByReplacingMatches(in: text, range: NSRange(text.startIndex..., in: text), withTemplate: "")
                 html += #"<p style="font-size:.9em;color:#555;margin-left:1.5em;text-indent:-1.5em">\#(Markdown.inline(clean))</p>"#

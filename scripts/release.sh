@@ -137,7 +137,7 @@ CLI_PATH="$DIST_DIR/$CLI_NAME"
 ARCHS="$(lipo -archs "$BINARY_PATH")"
 
 BINARY_SIZE="$(ls -lh "$BINARY_PATH" | awk '{print $5}')"
-info "Universal binary built: $BINARY_PATH ($BINARY_SIZE), archs: $ARCHS"
+info "Universal binaries built: $BINARY_PATH ($BINARY_SIZE), $CLI_PATH ($(ls -lh "$CLI_PATH" | awk '{print $5}')), archs: $ARCHS"
 
 # ---- Confirm with user -------------------------------------------------------
 

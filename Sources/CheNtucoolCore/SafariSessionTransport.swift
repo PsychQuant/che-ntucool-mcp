@@ -69,13 +69,29 @@ public struct SafariTab: Sendable, Equatable {
 public final class SafariSessionTransport: CanvasTransport, @unchecked Sendable {
     private let runner: ScriptRunner
     private let host: String
+    private let expectedUserID: Int?
     private let lock = NSLock()
     private var locked: SafariTab?
+    private var pinned: Int?
 
-    public init(runner: ScriptRunner = OSAScriptRunner(), host: String = "cool.ntu.edu.tw") {
+    /// - Parameter expectedUserID: Canvas user id every locked tab must belong
+    ///   to. Without it, the first tab's owner becomes the pin, so a later
+    ///   re-probe (the locked tab closed or navigated) can never move this
+    ///   transport to a different account — a switch the layer above would
+    ///   not see.
+    public init(runner: ScriptRunner = OSAScriptRunner(), host: String = "cool.ntu.edu.tw", expectedUserID: Int? = nil) {
         self.runner = runner
         self.host = host
+        self.expectedUserID = expectedUserID
     }
+
+    /// Canvas user id every request on this transport runs as, once known.
+    public var pinnedUserID: Int? {
+        lock.lock(); defer { lock.unlock() }
+        return expectedUserID ?? pinned
+    }
+
+    private var origin: String { "https://\(host)" }
 
     /// The tab currently locked, if probing has happened. Exposed for tests
     /// and for the CLI's diagnostics output.
@@ -86,7 +102,7 @@ public final class SafariSessionTransport: CanvasTransport, @unchecked Sendable 
 
     public func send(method: String, path: String, query: [String: String], jsonBody: Data?) async throws -> CanvasResponse {
         let sameOrigin = try CanvasURL.checkedSameOriginPath(path: path, query: query, host: host)
-        let js = Self.javascript(method: method, sameOriginPath: sameOrigin, jsonBody: jsonBody)
+        let js = Self.javascript(method: method, sameOriginPath: sameOrigin, jsonBody: jsonBody, origin: origin)
 
         if let tab = lockedTab {
             do {
@@ -108,13 +124,27 @@ public final class SafariSessionTransport: CanvasTransport, @unchecked Sendable 
         let listing = try runner.run(appleScript: Self.tabListScript)
         let candidates = Self.rankCandidates(Self.parseTabList(listing), host: host)
         var tried: [String] = []
-        let probeJS = Self.javascript(method: "GET", sameOriginPath: "/api/v1/users/self", jsonBody: nil)
+        let probeJS = Self.javascript(method: "GET", sameOriginPath: "/api/v1/users/self", jsonBody: nil, origin: origin)
+        let pin = pinnedUserID
         for tab in candidates {
-            tried.append(tab.label)
-            guard let response = try? execute(probeJS, in: tab), response.status == 200 else { continue }
+            guard let response = try? execute(probeJS, in: tab), response.status == 200 else {
+                tried.append(tab.label)
+                continue
+            }
+            let id = (try? JSONSerialization.jsonObject(with: response.body) as? [String: Any])?["id"] as? Int
+            if let pin, id != pin {
+                tried.append("\(tab.label)（登入者 id \(id.map(String.init) ?? "?")，不是 \(pin)）")
+                continue
+            }
+            if pin == nil, let id { setPinned(id) }
             return tab
         }
         throw CanvasTransportError.noSafariSession(tried: tried)
+    }
+
+    private func setPinned(_ id: Int) {
+        lock.lock(); defer { lock.unlock() }
+        pinned = id
     }
 
     private func execute(_ js: String, in tab: SafariTab) throws -> CanvasResponse {
@@ -164,15 +194,26 @@ public final class SafariSessionTransport: CanvasTransport, @unchecked Sendable 
         else {
             throw CanvasTransportError.safariScriptFailed(trimmed)
         }
+        // Negative status: our own script refused (the page was not on the
+        // expected origin). Treated like any script failure so the caller
+        // re-probes; nothing was sent.
+        guard status >= 0 else { throw CanvasTransportError.safariScriptFailed(text) }
         if text.hasPrefix("while(1);") { text.removeFirst("while(1);".count) }
         let link = (obj["l"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         return CanvasResponse(status: status, body: Data(text.utf8), link: link)
     }
 
     /// Single-line JS: synchronous XHR against a same-origin path.
-    static func javascript(method: String, sameOriginPath: String, jsonBody: Data?) -> String {
+    /// The first statement checks the page's own origin: a tab is addressed
+    /// by window/tab index, and between listing and executing it may have
+    /// navigated elsewhere. On any other origin the script returns without
+    /// opening a request, so neither the path nor the body leaves.
+    static func javascript(method: String, sameOriginPath: String, jsonBody: Data?,
+                           origin: String = "https://cool.ntu.edu.tw") -> String {
         var parts: [String] = []
-        parts.append("(function(){var x=new XMLHttpRequest();")
+        parts.append("(function(){")
+        parts.append("if(location.origin!==\"\(jsString(origin))\"){return JSON.stringify({s:-1,t:\"wrong origin \"+location.origin,l:\"\"});}")
+        parts.append("var x=new XMLHttpRequest();")
         parts.append("x.open(\"\(method)\",\"\(jsString(sameOriginPath))\",false);")
         parts.append("x.setRequestHeader(\"Accept\",\"application/json\");")
         if method != "GET" {
@@ -228,6 +269,10 @@ public final class SafariSessionTransport: CanvasTransport, @unchecked Sendable 
             case "\n": out += "\\n"
             case "\r": out += "\\r"
             case "\t": out += "\\t"
+            // Line terminators in JavaScript source, even inside a string literal
+            // in older engines; escaped so the literal can never be split.
+            case "\u{2028}": out += "\\u2028"
+            case "\u{2029}": out += "\\u2029"
             default: out.append(c)
             }
         }

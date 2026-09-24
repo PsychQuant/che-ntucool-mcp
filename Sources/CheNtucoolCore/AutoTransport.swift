@@ -59,13 +59,15 @@ public final class AutoTransport: CanvasTransport, @unchecked Sendable {
     public init(
         tokenProvider: @escaping TokenProvider,
         tokenTransportFactory: @escaping TokenTransportFactory = { TokenTransport(token: $0) },
-        safariFactory: @escaping SafariFactory = { SafariSessionTransport() },
+        safariFactory: SafariFactory? = nil,
         expectedUserID: Int? = nil,
         log: @escaping Log = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) }
     ) {
         self.tokenProvider = tokenProvider
         self.tokenTransportFactory = tokenTransportFactory
-        self.safariFactory = safariFactory
+        // The default Safari transport carries the same pin, so a tab switch
+        // inside it (after this ladder verified once) cannot change accounts.
+        self.safariFactory = safariFactory ?? { SafariSessionTransport(expectedUserID: expectedUserID) }
         self.expectedUserID = expectedUserID
         self.log = log
     }

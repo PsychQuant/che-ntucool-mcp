@@ -138,7 +138,7 @@ public enum CanvasURL {
             guard let c = URLComponents(string: path),
                   let host = base.host, let scheme = base.scheme,
                   sameOrigin(c, scheme: scheme, host: host, port: base.port),
-                  c.path.hasPrefix(base.path)
+                  c.path == base.path || c.path.hasPrefix(base.path + "/")
             else { throw CanvasTransportError.foreignURL(path) }
         }
         return resolve(path: path, query: query, base: base)

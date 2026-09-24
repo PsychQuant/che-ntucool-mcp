@@ -48,9 +48,15 @@ struct GlobalOptions: ParsableArguments {
         let config = try loadConfig()
         let env = ProcessInfo.processInfo.environment
         let keychainAccount = account ?? env["NTUCOOL_ACCOUNT"] ?? "default"
+        // A keychain dialog is fine for a person at a terminal; for a headless
+        // caller it would block forever, so there the read fails fast and the
+        // ladder goes to Safari.
+        let allowUI = isatty(STDIN_FILENO) != 0
         let transport = AutoTransport(
             tokenProvider: {
-                do { return try CanvasAuth.read(account: keychainAccount) } catch CanvasAuthError.itemNotFound { return nil }
+                do { return try CanvasAuth.read(account: keychainAccount, allowUI: allowUI) }
+                catch CanvasAuthError.itemNotFound { return nil }
+                // .uiRequired propagates: the ladder logs it and uses Safari.
             },
             expectedUserID: config.expectedUserId
         )

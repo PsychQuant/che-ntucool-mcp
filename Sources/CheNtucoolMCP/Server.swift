@@ -87,7 +87,7 @@ class NtucoolMCPServer {
         self.transportLadder = Self.makeTransport(keychainAccount: keychainAccount)
         self.server = Server(
             name: "che-ntucool-mcp",
-            version: "0.2.0",
+            version: "0.3.0",
             instructions: Self.serverInstructions,
             capabilities: .init(tools: .init()),
             // Strict mode is correct on its own terms (the spec requires clients

@@ -60,7 +60,7 @@ struct EnrollCommand: AsyncParsableCommand {
         f.dateFormat = "yyyy-MM-dd"
         let date = f.string(from: Date())
         f.dateFormat = "HH:mm"
-        let note = self.note.contains(",") ? "\"\(self.note.replacingOccurrences(of: "\"", with: "\"\""))\"" : self.note
+        let note = CSV.field(self.note)
         let row = "\(date),\(f.string(from: Date()))\(offset),\(c.students),\(c.studentsInvited),\(c.teachers),\(c.tas),\(note)\n"
         let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: path))
         defer { try? handle.close() }
