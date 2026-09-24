@@ -37,7 +37,8 @@ let package = Package(
                 "CheNtucoolCore",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
-            path: "Sources/CheNtucool"
+            path: "Sources/CheNtucool",
+            exclude: ["Entitlements.plist"]
         ),
         .testTarget(
             name: "CheNtucoolCoreTests",

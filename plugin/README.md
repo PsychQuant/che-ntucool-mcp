@@ -1,16 +1,18 @@
-# che-ntucool-mcp (plugin)
+# che-ntucool (plugin)
 
-Claude Code plugin wrapping the `che-ntucool-mcp` binary — NTU COOL (Canvas
-LMS) queries, plus human-confirmed grade and announcement writes.
+Claude Code plugin for NTU COOL (Canvas LMS): the `che-ntucool` CLI (on the
+Bash tool's PATH via `bin/che-ntucool`) for course building, and the MCP server
+for reads plus human-confirmed grade and announcement writes.
 
 ## Install
 
 ```
 claude plugin marketplace add PsychQuant/che-ntucool-mcp
-claude plugin install che-ntucool-mcp@che-ntucool-mcp
+claude plugin install che-ntucool@che-ntucool
 ```
 
-The wrapper (`bin/che-ntucool-mcp-wrapper.sh`) auto-downloads the binary from
+Both wrappers (`bin/che-ntucool`, `bin/che-ntucool-mcp-wrapper.sh`, sharing
+`lib/ensure-binary.sh`) auto-download their binary from
 this repo's GitHub Releases on first use, and re-downloads when the plugin's
 `binary_version` moves ahead of what's installed.
 
