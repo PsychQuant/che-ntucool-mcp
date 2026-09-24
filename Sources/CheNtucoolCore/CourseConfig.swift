@@ -29,6 +29,10 @@ public struct CourseConfig: Codable, Equatable, Sendable {
     /// when set, a Safari tab holding anyone else's session is refused
     /// instead of used (see `AutoTransport`).
     public let expectedUserId: Int?
+    /// Named multiple-choice option lists for `quiz build`, e.g. the course's
+    /// nine paragraph-check options. The CLI stays course-agnostic; the
+    /// options belong to the course.
+    public let quizOptionSets: [String: [String]]?
 
     public static let defaultTimezone = "+08:00"
     public static let environmentKey = "CHE_NTUCOOL_CONFIG"
@@ -40,14 +44,16 @@ public struct CourseConfig: Codable, Equatable, Sendable {
         case titleFormats = "title_formats"
         case timezone
         case expectedUserId = "expected_user_id"
+        case quizOptionSets = "quiz_option_sets"
     }
 
-    public init(courseId: Int, modules: [String: Int], titleFormats: [String: String]? = nil, timezone: String = defaultTimezone, expectedUserId: Int? = nil) {
+    public init(courseId: Int, modules: [String: Int], titleFormats: [String: String]? = nil, timezone: String = defaultTimezone, expectedUserId: Int? = nil, quizOptionSets: [String: [String]]? = nil) {
         self.courseId = courseId
         self.modules = modules
         self.titleFormats = titleFormats
         self.timezone = timezone
         self.expectedUserId = expectedUserId
+        self.quizOptionSets = quizOptionSets
     }
 
     public init(from decoder: Decoder) throws {
@@ -57,6 +63,7 @@ public struct CourseConfig: Codable, Equatable, Sendable {
         titleFormats = try c.decodeIfPresent([String: String].self, forKey: .titleFormats)
         timezone = try c.decodeIfPresent(String.self, forKey: .timezone) ?? Self.defaultTimezone
         expectedUserId = try c.decodeIfPresent(Int.self, forKey: .expectedUserId)
+        quizOptionSets = try c.decodeIfPresent([String: [String]].self, forKey: .quizOptionSets)
     }
 
     // MARK: Loading

@@ -174,6 +174,23 @@ public final class CanvasAPIClient: @unchecked Sendable {
         return response.body
     }
 
+    /// One request with a `JSONSerialization` body; the parsed response back
+    /// (`NSNull` for an empty body). For the CLI, whose payloads are built
+    /// as dictionaries so the publish gate can inspect them before sending.
+    public func sendJSON(_ method: String, path: String, query: [String: String] = [:], object: Any?) async throws -> Any {
+        let body = try object.map { try JSONSerialization.data(withJSONObject: $0) }
+        let response = try await transport.send(method: method, path: path, query: query, jsonBody: body)
+        guard response.status < 400 else {
+            throw CanvasAPIError.httpError(response.status, String(data: response.body, encoding: .utf8) ?? "<non-utf8 body>")
+        }
+        guard !response.body.isEmpty else { return NSNull() }
+        do {
+            return try JSONSerialization.jsonObject(with: response.body, options: [.fragmentsAllowed])
+        } catch {
+            throw CanvasAPIError.decodingError("non-JSON response from \(path)")
+        }
+    }
+
     /// GET every page of a list endpoint by following `Link: rel="next"`,
     /// asking for 100 per page. Returns the concatenated JSON objects.
     public func paginate(path: String, query: [String: String] = [:]) async throws -> [[String: Any]] {
