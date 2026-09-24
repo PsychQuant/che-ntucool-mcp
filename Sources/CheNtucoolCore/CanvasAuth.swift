@@ -47,17 +47,18 @@ public enum CanvasAuth {
         // kSecUseAuthenticationUIFail alone does not stop the file-keychain
         // "allow access" dialog (verified live: still hung). The legacy switch
         // does; it is process-global, so restore it right after the one read.
+        // Every read takes the lock, not only headless ones: the interaction
+        // toggle is process-global, and a UI-allowed read overlapping a
+        // headless one would otherwise run with interaction switched off.
+        interactionLock.lock()
         var previous: DarwinBoolean = true
         if !allowUI {
-            interactionLock.lock()
             SecKeychainGetUserInteractionAllowed(&previous)
             SecKeychainSetUserInteractionAllowed(false)
         }
         defer {
-            if !allowUI {
-                SecKeychainSetUserInteractionAllowed(previous.boolValue)
-                interactionLock.unlock()
-            }
+            if !allowUI { SecKeychainSetUserInteractionAllowed(previous.boolValue) }
+            interactionLock.unlock()
         }
         let status = SecItemCopyMatching(query(service: service, account: account, allowUI: allowUI) as CFDictionary, &item)
         guard status == errSecSuccess else { throw classify(status) }

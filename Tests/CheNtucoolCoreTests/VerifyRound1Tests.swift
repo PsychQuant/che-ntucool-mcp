@@ -250,3 +250,38 @@ final class VerifyRound2Tests: XCTestCase {
         XCTAssertEqual(((state["modules"] as! [[String: Any]])[0]["items"] as? [[String: Any]])?.count, 1)
     }
 }
+
+/// idd-verify round 3 findings on #1.
+final class VerifyRound3Tests: XCTestCase {
+    private let tabs = "1\t1\t1\thttps://cool.ntu.edu.tw/\n1\t2\t0\thttps://cool.ntu.edu.tw/courses/1\n"
+
+    /// The script is built after the tab is chosen and the owner pinned, so
+    /// even a write that is the very first call carries the owner check.
+    func testFirstCallWriteCarriesTheOwnerCheck() async throws {
+        let runner = FakeScriptRunner(tabTable: tabs)
+        runner.responses["1/1/GET"] = FakeScriptRunner.envelope(status: 200, text: #"{"id":42}"#)
+        runner.responses["1/1/PUT"] = FakeScriptRunner.envelope(status: 200, text: "{}")
+        let transport = SafariSessionTransport(runner: runner)
+        _ = try await transport.send(method: "PUT", path: "courses/1/quizzes/2", query: [:], jsonBody: Data("{}".utf8))
+        let put = try XCTUnwrap(runner.jsCalls.last)
+        XCTAssertTrue(put.contains(#"x.open(\"PUT\""#))
+        XCTAssertTrue(put.contains("wo.id!==42"), "owner check with the pinned id")
+    }
+
+    /// After a write finds another account in the tab, stop using that tab.
+    func testIdentityMismatchUnlocksTheTab() async throws {
+        let runner = FakeScriptRunner(tabTable: tabs)
+        runner.responses["1/1/GET"] = FakeScriptRunner.envelope(status: 200, text: #"{"id":42}"#)
+        let transport = SafariSessionTransport(runner: runner)
+        _ = try await transport.send(method: "GET", path: "users/self", query: [:], jsonBody: nil)
+        XCTAssertNotNil(transport.lockedTab)
+        runner.responses["1/1/PUT"] = FakeScriptRunner.envelope(status: -2, text: #"{"id":999}"#)
+        do {
+            _ = try await transport.send(method: "PUT", path: "x", query: [:], jsonBody: Data("{}".utf8))
+            XCTFail("expected identityMismatch")
+        } catch let e as CanvasTransportError {
+            XCTAssertEqual(e, .identityMismatch(expected: 42, actual: 999, name: nil))
+        }
+        XCTAssertNil(transport.lockedTab, "a tab proven to be someone else's is not reused")
+    }
+}

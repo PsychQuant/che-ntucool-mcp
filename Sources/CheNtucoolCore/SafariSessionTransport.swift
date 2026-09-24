@@ -102,12 +102,17 @@ public final class SafariSessionTransport: CanvasTransport, @unchecked Sendable 
 
     public func send(method: String, path: String, query: [String: String], jsonBody: Data?) async throws -> CanvasResponse {
         let sameOrigin = try CanvasURL.checkedSameOriginPath(path: path, query: query, host: host)
-        let js = Self.javascript(method: method, sameOriginPath: sameOrigin, jsonBody: jsonBody, origin: origin,
-                                 expectedUserID: pinnedUserID)
+        // Built at execution time, after the tab is chosen and the owner pinned:
+        // a script built before probe() would carry no owner check on a
+        // transport's very first request, even when that request is a write.
+        func script() -> String {
+            Self.javascript(method: method, sameOriginPath: sameOrigin, jsonBody: jsonBody, origin: origin,
+                            expectedUserID: pinnedUserID)
+        }
 
         if let tab = lockedTab {
             do {
-                return try execute(js, in: tab)
+                return try executeUnlockingOnMismatch(script(), in: tab)
             } catch CanvasTransportError.safariScriptFailed {
                 // The locked tab went away (closed, navigated, unloaded).
                 // Forget it and fall through to a fresh probe.
@@ -116,7 +121,18 @@ public final class SafariSessionTransport: CanvasTransport, @unchecked Sendable 
         }
         let tab = try probe()
         setLocked(tab)
-        return try execute(js, in: tab)
+        return try executeUnlockingOnMismatch(script(), in: tab)
+    }
+
+    /// A tab shown to hold someone else's session is dropped, so reads stop
+    /// using it too; the next request re-probes and the pin refuses that tab.
+    private func executeUnlockingOnMismatch(_ js: String, in tab: SafariTab) throws -> CanvasResponse {
+        do {
+            return try execute(js, in: tab)
+        } catch let error as CanvasTransportError {
+            if case .identityMismatch = error { setLocked(nil) }
+            throw error
+        }
     }
 
     // MARK: Probing
