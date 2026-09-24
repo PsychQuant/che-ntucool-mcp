@@ -122,8 +122,11 @@ class NtucoolMCPServer {
         // `NTUCOOL_API_BASE` points the bearer transport at a stub so the write
         // gate can be verified end-to-end — that override is token-only, since
         // the Safari path is by construction same-origin with cool.ntu.edu.tw.
-        let baseURL = ProcessInfo.processInfo.environment["NTUCOOL_API_BASE"]
+        let env = ProcessInfo.processInfo.environment
+        let baseURL = env["NTUCOOL_API_BASE"]
             .flatMap(URL.init(string:)) ?? CanvasURL.defaultAPIBase
+        // Pins the Safari fallback to one Canvas account (see AutoTransport).
+        let expectedUserID = env["NTUCOOL_EXPECTED_USER_ID"].flatMap(Int.init)
         return AutoTransport(
             tokenProvider: {
                 do {
@@ -132,7 +135,8 @@ class NtucoolMCPServer {
                     return nil
                 }
             },
-            tokenTransportFactory: { TokenTransport(token: $0, baseURL: baseURL) }
+            tokenTransportFactory: { TokenTransport(token: $0, baseURL: baseURL) },
+            expectedUserID: expectedUserID
         )
     }
 

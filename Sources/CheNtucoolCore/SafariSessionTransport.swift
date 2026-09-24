@@ -85,7 +85,7 @@ public final class SafariSessionTransport: CanvasTransport, @unchecked Sendable 
     }
 
     public func send(method: String, path: String, query: [String: String], jsonBody: Data?) async throws -> CanvasResponse {
-        let sameOrigin = CanvasURL.sameOriginPath(path: path, query: query)
+        let sameOrigin = try CanvasURL.checkedSameOriginPath(path: path, query: query, host: host)
         let js = Self.javascript(method: method, sameOriginPath: sameOrigin, jsonBody: jsonBody)
 
         if let tab = lockedTab {

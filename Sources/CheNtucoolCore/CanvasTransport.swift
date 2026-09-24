@@ -64,6 +64,15 @@ public enum CanvasTransportError: Error, LocalizedError, Equatable {
     /// (typically: "Allow JavaScript from Apple Events" is off, or Automation
     /// permission was denied).
     case safariScriptFailed(String)
+    /// An absolute URL outside the configured API origin (other host, other
+    /// port, userinfo, or not https). Refused before any request is built, so
+    /// the bearer token and the session cookie never leave NTU COOL.
+    case foreignURL(String)
+    /// The Safari session belongs to a different Canvas user than the one
+    /// this run is pinned to (`expected_user_id` in ntucool.json).
+    case identityMismatch(expected: Int, actual: Int, name: String?)
+    /// `GET /users/self` on the Safari session did not answer 200 with an id.
+    case identityProbeFailed(String)
 
     public var errorDescription: String? {
         switch self {
@@ -74,6 +83,12 @@ public enum CanvasTransportError: Error, LocalizedError, Equatable {
             return "Safari 沒有已登入的 COOL 分頁：請在 Safari 開啟 https://cool.ntu.edu.tw 並登入後重試。探測過：\(list)"
         case .safariScriptFailed(let detail):
             return "Safari 腳本執行失敗（需要「開發 > 允許 Apple Events 執行 JavaScript」與自動化權限）：\(detail.prefix(300))"
+        case .foreignURL(let url):
+            return "拒絕送出：\(url) 不在 NTU COOL API 的來源（https + 同主機）之內，憑證不會送到別的地方"
+        case .identityMismatch(let expected, let actual, let name):
+            return "Safari 登入的是 \(name ?? "?")（id \(actual)），不是設定檔指定的 id \(expected)；不以別人的身分送出。請在 Safari 換成正確帳號的 COOL 分頁後重試"
+        case .identityProbeFailed(let detail):
+            return "無法確認 Safari 登入者（GET /users/self）：\(detail.prefix(300))"
         }
     }
 }
@@ -103,8 +118,46 @@ public enum CanvasURL {
         return c
     }
 
-    /// Absolute URL for URLSession.
-    public static func resolve(path: String, query: [String: String], base: URL = defaultAPIBase) -> URL {
+    /// True when an absolute URL is on exactly `scheme://host[:port]` with no
+    /// userinfo. Host comparison is case-insensitive; an explicit default port
+    /// is the same as none.
+    static func sameOrigin(_ c: URLComponents, scheme: String, host: String, port: Int?) -> Bool {
+        func effective(_ p: Int?, _ s: String?) -> Int? { p ?? (s == "https" ? 443 : s == "http" ? 80 : nil) }
+        return c.scheme?.lowercased() == "https"
+            && scheme.lowercased() == "https"
+            && c.host?.lowercased() == host.lowercased()
+            && effective(c.port, c.scheme?.lowercased()) == effective(port, scheme.lowercased())
+            && c.user == nil && c.password == nil
+    }
+
+    /// `resolve`, but an absolute `path` must share `base`'s origin and sit
+    /// under its path. This is the only resolver a credential-bearing
+    /// transport may use.
+    public static func checkedResolve(path: String, query: [String: String], base: URL = defaultAPIBase) throws -> URL {
+        if isAbsolute(path) {
+            guard let c = URLComponents(string: path),
+                  let host = base.host, let scheme = base.scheme,
+                  sameOrigin(c, scheme: scheme, host: host, port: base.port),
+                  c.path.hasPrefix(base.path)
+            else { throw CanvasTransportError.foreignURL(path) }
+        }
+        return resolve(path: path, query: query, base: base)
+    }
+
+    /// `sameOriginPath`, but an absolute `path` must be https on `host`.
+    /// Without this check a foreign URL would be silently rewritten to a
+    /// same-origin path — harmless for the cookie, but it would hit an
+    /// endpoint nobody asked for.
+    public static func checkedSameOriginPath(path: String, query: [String: String], host: String) throws -> String {
+        if isAbsolute(path) {
+            guard let c = URLComponents(string: path), sameOrigin(c, scheme: "https", host: host, port: nil)
+            else { throw CanvasTransportError.foreignURL(path) }
+        }
+        return sameOriginPath(path: path, query: query)
+    }
+
+    /// Absolute URL for URLSession. Unchecked; transports use `checkedResolve`.
+    static func resolve(path: String, query: [String: String], base: URL = defaultAPIBase) -> URL {
         let components: URLComponents
         if isAbsolute(path), let c = URLComponents(string: path) {
             components = c
@@ -117,7 +170,7 @@ public enum CanvasURL {
 
     /// Path-and-query for a same-origin request issued from inside a
     /// `cool.ntu.edu.tw` page (Safari transport).
-    public static func sameOriginPath(path: String, query: [String: String]) -> String {
+    static func sameOriginPath(path: String, query: [String: String]) -> String {
         var components: URLComponents
         if isAbsolute(path), let c = URLComponents(string: path) {
             components = c
@@ -159,7 +212,7 @@ public final class TokenTransport: CanvasTransport, @unchecked Sendable {
     }
 
     public func send(method: String, path: String, query: [String: String], jsonBody: Data?) async throws -> CanvasResponse {
-        var request = URLRequest(url: CanvasURL.resolve(path: path, query: query, base: baseURL))
+        var request = URLRequest(url: try CanvasURL.checkedResolve(path: path, query: query, base: baseURL))
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")

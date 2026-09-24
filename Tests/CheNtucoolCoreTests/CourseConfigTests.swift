@@ -41,6 +41,13 @@ final class CourseConfigTests: XCTestCase {
         let config = try CourseConfig.load(explicitPath: path, environment: [:], cwd: "/nonexistent")
         XCTAssertEqual(config.timezone, "+08:00")
         XCTAssertNil(config.titleFormats)
+        XCTAssertNil(config.expectedUserId)
+    }
+
+    func testExpectedUserIdPinsTheSafariIdentity() throws {
+        let path = try write(#"{"course_id": 1, "expected_user_id": 12345}"#)
+        let config = try CourseConfig.load(explicitPath: path, environment: [:], cwd: "/nonexistent")
+        XCTAssertEqual(config.expectedUserId, 12345)
     }
 
     func testExplicitPathBeatsEnvBeatsCwd() throws {

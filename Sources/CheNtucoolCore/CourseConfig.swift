@@ -8,7 +8,8 @@ import Foundation
 ///   "course_id": 64652,
 ///   "modules": { "W01": 946894, "W02": 946895 },
 ///   "title_formats": { "quiz": "W{week} 隨堂測驗" },
-///   "timezone": "+08:00"
+///   "timezone": "+08:00",
+///   "expected_user_id": 12345
 /// }
 /// ```
 ///
@@ -24,6 +25,10 @@ public struct CourseConfig: Codable, Equatable, Sendable {
     public let titleFormats: [String: String]?
     /// ISO 8601 UTC offset, e.g. `+08:00`.
     public let timezone: String
+    /// Canvas user id the Safari fallback must be logged in as. Optional;
+    /// when set, a Safari tab holding anyone else's session is refused
+    /// instead of used (see `AutoTransport`).
+    public let expectedUserId: Int?
 
     public static let defaultTimezone = "+08:00"
     public static let environmentKey = "CHE_NTUCOOL_CONFIG"
@@ -34,13 +39,15 @@ public struct CourseConfig: Codable, Equatable, Sendable {
         case modules
         case titleFormats = "title_formats"
         case timezone
+        case expectedUserId = "expected_user_id"
     }
 
-    public init(courseId: Int, modules: [String: Int], titleFormats: [String: String]? = nil, timezone: String = defaultTimezone) {
+    public init(courseId: Int, modules: [String: Int], titleFormats: [String: String]? = nil, timezone: String = defaultTimezone, expectedUserId: Int? = nil) {
         self.courseId = courseId
         self.modules = modules
         self.titleFormats = titleFormats
         self.timezone = timezone
+        self.expectedUserId = expectedUserId
     }
 
     public init(from decoder: Decoder) throws {
@@ -49,6 +56,7 @@ public struct CourseConfig: Codable, Equatable, Sendable {
         modules = try c.decodeIfPresent([String: Int].self, forKey: .modules) ?? [:]
         titleFormats = try c.decodeIfPresent([String: String].self, forKey: .titleFormats)
         timezone = try c.decodeIfPresent(String.self, forKey: .timezone) ?? Self.defaultTimezone
+        expectedUserId = try c.decodeIfPresent(Int.self, forKey: .expectedUserId)
     }
 
     // MARK: Loading
