@@ -1,12 +1,14 @@
 ---
 name: ntucool-canvas
 description: |
-  Query and update NTU COOL (Canvas LMS) — courses, assignments, submissions,
-  announcements, files, roster; plus posting grades and announcements. Use when
-  the user asks about their NTU COOL courses, assignment status, who has/hasn't
-  submitted, course announcements or files, or asks to enter grades or publish
-  an announcement.
+  Read and build NTU COOL (Canvas LMS) courses — modules, quizzes, assignments,
+  announcements, files, roster, grades. Use when the user asks about their NTU
+  COOL course state, wants to add a link or quiz to a week's module, build a
+  quiz from a 測驗.md file, change quiz/assignment times, post or edit an
+  announcement from an announcements/*.md file, check enrollment, see who has
+  submitted, or enter grades.
 allowed-tools:
+  - Bash(che-ntucool:*)
   - mcp__ntucool__list_courses
   - mcp__ntucool__list_assignments
   - mcp__ntucool__list_announcements
@@ -19,33 +21,85 @@ allowed-tools:
   - mcp__ntucool__post_announcement
 ---
 
-# NTU COOL (Canvas LMS) Query
+# NTU COOL (Canvas LMS)
 
-MCP for NTU COOL, National Taiwan University's Canvas LMS deployment. Reads are
-unguarded; grade and announcement writes are two-step and human-confirmed.
-Verified against a live course before ship (PsychQuant/ntu-claude-plugins#17) —
-NTU COOL is a customized Canvas deployment with a fully open standard Canvas
-REST API.
+Two front ends over one Canvas client:
 
-## Setup (one-time, per machine)
+- **`che-ntucool` CLI** (on PATH while this plugin is enabled) — course
+  building: state, modules, quizzes from markdown, assignments, announcements,
+  enrollment. Use this for anything the course repo's `scripts/cool_build.py`
+  used to do.
+- **MCP tools** (below) — quick reads and the two-step grade / announcement
+  writes with an in-client confirmation dialog.
 
-Requires a Canvas Personal Access Token in the macOS keychain:
+## Credentials — normally nothing to set up
 
-```bash
-security add-generic-password -s ntu-cool-canvas -a default -w
+A working keychain token (service `ntu-cool-canvas`) is used if present.
+Otherwise, and whenever NTU COOL rejects it (manually issued COOL tokens die
+after about an hour), requests go through **a logged-in Safari tab on
+cool.ntu.edu.tw**, riding its session. On first use it logs whose session
+that is (`Safari 登入者 名字（id N）`). Set `expected_user_id` in `ntucool.json`
+(or `NTUCOOL_EXPECTED_USER_ID` for the MCP server) to refuse any other
+account — this Mac has several Safari profiles.
+
+If a call fails with `Safari 沒有已登入的 COOL 分頁`, ask the user to open and
+log in to NTU COOL in Safari. Do not ask for a token, and never let a token be
+pasted into the conversation. Safari needs 開發 → 允許 Apple Events 執行
+JavaScript, once.
+
+## CLI
+
+Course settings come from `--config`, `$CHE_NTUCOOL_CONFIG`, or `./ntucool.json`:
+
+```json
+{
+  "course_id": 64652,
+  "modules": { "W01": 946894, "W02": 946895 },
+  "timezone": "+08:00",
+  "expected_user_id": 344929,
+  "quiz_option_sets": { "nine": ["①【未引用文獻】…", "…"] }
+}
 ```
 
-Omit the value after `-w` — `security` prompts for it twice, keeping the token
-out of the shell history and out of the process argument list. Never pass it as
-`-w '<token>'`, and never echo it into the conversation: Canvas shows the token
-once, and anything that reaches a transcript has to be revoked and reissued.
+| Task | Command |
+|------|---------|
+| Everything, with publish state | `che-ntucool state` (`--json` for machine output) |
+| Link in a week's module | `che-ntucool module add-url --week W03 --title … --url …` |
+| Publish a module / item | `che-ntucool module publish W03 [--item ID] [--off]` |
+| Check a quiz file offline | `che-ntucool quiz build --file W03/測驗.md --week W03 --title … --options nine --dry-run` |
+| Build the quiz (unpublished) | same without `--dry-run`, plus `--unlock/--due/--time-limit/--group` |
+| Fix one question | `che-ntucool quiz update-question QUIZ N --file … --options nine` |
+| Times, type, publish | `che-ntucool quiz set QUIZ --due 2026-09-30T11:55 --type practice_quiz --published false` |
+| Assignments | `che-ntucool assignment groups / list / create / set` |
+| Announcements | `che-ntucool announce list / post FILE.md / edit ID FILE.md` |
+| Roster counts | `che-ntucool enroll [--append-csv 115-1/cool_enrollment.csv]` |
 
-Generate the token at NTU COOL → 帳戶 → 設定 → 已核准的整合 → 新訪問令牌 — NTU's
-theme hides that section by default, so the user may report not seeing it. If the
-token is missing, tool calls fail with a Canvas 401 — the error message will say
-so; direct the user to run the command above, not attempt to work around it.
+Times without an offset are read in the config's `timezone` (Taipei) and always
+sent with an explicit offset.
 
-## Read tools
+### Anything students can see is gated
+
+Everything the CLI creates is **unpublished**. A write counts as
+student-visible when its body publishes something, when it is an
+announcement (post or edit), or when its target is already published (changing
+a published quiz's times or questions). Such a write prints a preview on
+stderr and needs **both**:
+
+1. `COOL_ALLOW_PUBLISH=1` in the environment — the variable the course repo's
+   hook watches, so the user sees a permission prompt; and
+2. `--yes`, or a `y` at the interactive prompt (there is no prompt without a
+   terminal, so from the Bash tool it is `--yes`).
+
+Before running such a command, follow the course repo's rule: paste the final
+content (the announcement file's 正文, the quiz, the settings) to the user and
+wait for them to say 發 — for **that** version. Only then add
+`COOL_ALLOW_PUBLISH=1 … --yes`. A refusal from the gate is an answer, not an
+obstacle: do not retry it another way.
+
+`announce post` reads only the file's `# ` title and `## 正文` section. After
+posting, fill in the file's `status` / `posted_at` / `cool_announcement_id`.
+
+## MCP read tools
 
 | Tool | Purpose |
 |------|---------|
@@ -60,7 +114,7 @@ Workflow: `list_courses` to resolve the `course_id` the user means, then the
 relevant `list_*` tool. If the user names a course loosely and two could match,
 **ask** — do not pick one.
 
-## Write tools — always two steps
+## MCP write tools — always two steps
 
 | Step | Grades | Announcements |
 |------|--------|---------------|

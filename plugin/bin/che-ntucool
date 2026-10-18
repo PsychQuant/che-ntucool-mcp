@@ -1,0 +1,9 @@
+#!/bin/bash
+# che-ntucool CLI, on the Bash tool's PATH while the plugin is enabled.
+# Downloads ~/bin/che-ntucool on first use / plugin update (lib/ensure-binary.sh),
+# then execs it with the caller's arguments.
+set -u
+BINARY_NAME="che-ntucool"
+# shellcheck source=../lib/ensure-binary.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/ensure-binary.sh"
+exec "$BINARY" "$@"

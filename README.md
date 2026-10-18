@@ -1,6 +1,6 @@
-# che-ntucool-mcp
+# che-ntucool
 
-MCP server for **NTU COOL**, National Taiwan University's Canvas LMS
+Command-line client **and** MCP server for **NTU COOL**, National Taiwan University's Canvas LMS
 deployment (`cool.ntu.edu.tw`). Confirmed via live verification
 ([PsychQuant/ntu-claude-plugins#17](https://github.com/PsychQuant/ntu-claude-plugins/issues/17))
 that NTU COOL is a customized Canvas deployment with a fully open standard
@@ -36,32 +36,38 @@ all.
 > elicitation gives the protocol a runtime — a step the model cannot rationalise
 > its way past under load, because it is not the model's step to take.
 
-## Setup
+## CLI
 
-1. Generate a Canvas Personal Access Token: NTU COOL → 帳戶 → 設定 →
-   已核准的整合 → 新訪問令牌.
+`che-ntucool` builds and inspects a course: `state`, `module add-url|publish`,
+`quiz list|build|update-question|set`, `assignment groups|list|create|set`,
+`announce list|post|edit`, `enroll`. Run `che-ntucool help <subcommand>`.
+Course settings live in `ntucool.json` (see `plugin/skills/ntucool-canvas/SKILL.md`).
 
-   You will probably not see that section. NTU COOL's custom theme hides the
-   whole 已核准的整合 block — token button included — with a `display: none`
-   rule. That is a cosmetic hide, not Canvas's `limit_personal_access_tokens`
-   account setting: the control is still rendered into the page, so the token
-   remains obtainable once the block is made visible. Verified 2026-08-19. If
-   `.add_access_token_link` is absent from the DOM entirely, self-service
-   tokens really have been disabled — contact ntucool@ntu.edu.tw.
-2. Store it in the macOS keychain (never as an env var, never in a config file):
+Everything it creates is unpublished. Anything students would see — publishing,
+posting or editing an announcement, changing something already published —
+prints a preview and needs `COOL_ALLOW_PUBLISH=1` plus `--yes` (or `y` at the
+prompt).
 
-   ```bash
-   security add-generic-password -s ntu-cool-canvas -a default -w
-   ```
+## Credentials
 
-   Omit the value after `-w`. `security` then prompts for it twice, so the token
-   never lands in your shell history or in the process argument list — with
-   `-w <token>` any local process can read it out of `ps` while the command runs.
+Normally none. A working Canvas token in the macOS keychain (service
+`ntu-cool-canvas`, account `default` or `$NTUCOOL_ACCOUNT`) is used when
+present; otherwise, and whenever NTU COOL rejects it — manually issued tokens
+expire after about an hour — requests ride **a logged-in Safari tab on
+cool.ntu.edu.tw**. Safari needs 開發 → 允許 Apple Events 執行 JavaScript once,
+and macOS asks for Automation permission on first use.
 
-   The account name must be `default`; that is what the wrapper and the server
-   both look up. Use a different one only if you also export `NTUCOOL_ACCOUNT`
-   to match — the account name is a lookup key, not a label, and is never
-   validated against your NTU login.
+The session owner is logged on first use. Set `expected_user_id` in
+`ntucool.json` (CLI) or `NTUCOOL_EXPECTED_USER_ID` (MCP server) to refuse any
+other account.
+
+Tokens are only ever sent to `https://cool.ntu.edu.tw`; absolute URLs pointing
+anywhere else are refused before a request is built.
+
+If you do want a token (it avoids Safari while it lives): NTU COOL → 帳戶 → 設定
+→ 已核准的整合 → 新訪問令牌 (NTU's theme hides that block with `display: none`),
+then `security add-generic-password -s ntu-cool-canvas -a default -w` — omit the
+value after `-w` so it is prompted for and never lands in shell history or `ps`.
 
 ## Installation
 
@@ -69,7 +75,7 @@ all.
 
 ```
 claude plugin marketplace add PsychQuant/che-ntucool-mcp
-claude plugin install che-ntucool-mcp@che-ntucool-mcp
+claude plugin install che-ntucool@che-ntucool
 ```
 
 The plugin's wrapper auto-downloads the binary on first use and re-downloads
@@ -125,7 +131,7 @@ make release-signed VERSION=vX.Y.Z   # signed, notarized, universal binary + Git
 
 #### Signing & Notarization (optional — not functionally required)
 
-> **Note on scope**: che-ntucool-mcp only makes outbound HTTPS calls to the Canvas
+> **Note on scope**: che-ntucool only makes outbound HTTPS calls to the Canvas
 > API — it does not touch any TCC-gated macOS API (EventKit, AppleEvents, Photos,
 > etc.), so signing is not functionally required for this project to work. It's
 > applied for Gatekeeper cleanliness and consistency with the rest of the

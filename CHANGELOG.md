@@ -1,5 +1,66 @@
 # Changelog
 
+## [0.3.0] - 2026-09-24
+
+The plugin is now **che-ntucool**: a command-line client alongside the MCP
+server, over one shared Canvas library (PsychQuant/che-ntucool-mcp#1).
+
+### Upgrading
+
+The plugin and its marketplace were renamed, so the old install does not update
+in place:
+
+```
+claude plugin uninstall che-ntucool-mcp@che-ntucool-mcp
+claude plugin marketplace remove che-ntucool-mcp
+claude plugin marketplace add PsychQuant/che-ntucool-mcp
+claude plugin install che-ntucool@che-ntucool
+```
+
+The MCP binary keeps its name (`CheNtucoolMCP`) so existing macOS permission
+grants stay valid. The GitHub repository keeps its name until it is renamed
+separately; the download URL works either way.
+
+### Added
+- `che-ntucool` CLI (on the Bash tool's PATH via the plugin's `bin/`):
+  `state`, `module add-url|publish`, `quiz list|build|update-question|set`,
+  `assignment groups|list|create|set`, `announce list|post|edit`, `enroll`,
+  with `--json`. Course settings in `ntucool.json` (`course_id`, week →
+  module ids, `timezone`, `expected_user_id`, `quiz_option_sets`).
+- Quizzes are built from the course repo's `W<NN>/測驗.md` format;
+  `--dry-run` parses and checks every answer against the option set offline.
+  Announcements are posted from `announcements/*.md` (title line and
+  `## 正文` only).
+- Safari session fallback: when the keychain has no token or NTU COOL
+  rejects it (manual tokens expire after about an hour), requests ride a
+  logged-in Safari tab on cool.ntu.edu.tw. Used by both the CLI and the MCP
+  server. The session owner is logged; `expected_user_id` /
+  `NTUCOOL_EXPECTED_USER_ID` refuses any other account.
+- `com.apple.security.automation.apple-events` entitlement on both binaries.
+
+### Safety
+- Everything the CLI creates is unpublished. A student-visible write (body
+  publishes, announcement post/edit, or the target is already published)
+  prints a preview and needs `COOL_ALLOW_PUBLISH=1` plus `--yes` or an
+  interactive `y` — the same contract as the course repo's `cool_build.py`,
+  so the repo's publish hook still fires.
+- Bearer tokens are only sent to the configured API origin over https:
+  absolute URLs from callers or from Canvas `Link` headers pointing
+  anywhere else are refused before a request is built.
+- Only a credential-rejection 401 switches to Safari; a permission 401
+  ("user not authorized") is returned as-is instead of being retried under
+  whoever a Safari tab is logged in as.
+
+### Fixed
+- Safari tab listing emitted the word "tab" instead of a tab character
+  (inside `tell application "Safari"`, `tab` is Safari's tab class), so the
+  Safari path could never find a COOL tab. Found in the live acceptance run.
+
+### Verified
+- `che-ntucool state` against course 64652 matches `cool_build.py state`
+  item for item (17 modules, 47 items, 16 discussions, 13 quizzes, 15
+  assignments, 3 files).
+
 ## [0.2.2] - 2026-08-19
 
 ### Fixed

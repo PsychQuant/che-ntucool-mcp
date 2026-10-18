@@ -1,8 +1,8 @@
 {
-  "name": "che-ntucool-mcp",
-  "version": "0.2.2",
-  "binary_version": "0.2.2",
-  "description": "NTU COOL (Canvas LMS) MCP — reads courses/assignments/submissions/announcements/files; grade + announcement writes gated by MCP elicitation and a payload-bound confirmation token (Foresay protocol).",
+  "name": "che-ntucool",
+  "version": "0.3.0",
+  "binary_version": "0.3.0",
+  "description": "NTU COOL (Canvas LMS) — che-ntucool CLI (state, modules, quizzes from markdown, assignments, announcements, enrollment) plus the MCP server. No token needed: falls back to a logged-in Safari tab. Anything students can see is previewed and gated (COOL_ALLOW_PUBLISH=1 + confirmation).",
   "author": {
     "name": "Che Cheng"
   },
@@ -14,6 +14,7 @@
     "education",
     "lms",
     "ntu",
-    "mcp"
+    "mcp",
+    "cli"
   ]
 }

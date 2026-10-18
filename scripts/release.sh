@@ -20,6 +20,8 @@ set -euo pipefail
 
 REPO="PsychQuant/che-ntucool-mcp"
 BINARY_NAME="CheNtucoolMCP"
+# Second shipped binary: the che-ntucool CLI (#1). Same pipeline, own entitlements.
+CLI_NAME="che-ntucool"
 DIST_DIR=".build/dist"
 BINARY_PATH="$DIST_DIR/$BINARY_NAME"
 
@@ -118,23 +120,24 @@ info "Building release binary (universal: arm64 + x86_64)..."
 swift build -c release --arch arm64
 swift build -c release --arch x86_64
 
-ARM64_BINARY=".build/arm64-apple-macosx/release/$BINARY_NAME"
-X64_BINARY=".build/x86_64-apple-macosx/release/$BINARY_NAME"
-if [[ ! -f "$ARM64_BINARY" || ! -f "$X64_BINARY" ]]; then
-    die "expected per-arch binaries missing (arm64: $ARM64_BINARY, x86_64: $X64_BINARY). build failed?"
-fi
-
 mkdir -p "$DIST_DIR"
-rm -f "$BINARY_PATH"
-lipo -create "$ARM64_BINARY" "$X64_BINARY" -output "$BINARY_PATH"
-chmod +x "$BINARY_PATH"
-
+make_universal() {
+    local name="$1" out="$DIST_DIR/$1"
+    local arm=".build/arm64-apple-macosx/release/$name" x64=".build/x86_64-apple-macosx/release/$name"
+    [[ -f "$arm" && -f "$x64" ]] || die "expected per-arch binaries missing for $name (arm64: $arm, x86_64: $x64). build failed?"
+    rm -f "$out"
+    lipo -create "$arm" "$x64" -output "$out"
+    chmod +x "$out"
+    local archs; archs="$(lipo -archs "$out")"
+    [[ "$archs" == *arm64* && "$archs" == *x86_64* ]] || die "universal $name missing expected archs (got: $archs)"
+}
+make_universal "$BINARY_NAME"
+make_universal "$CLI_NAME"
+CLI_PATH="$DIST_DIR/$CLI_NAME"
 ARCHS="$(lipo -archs "$BINARY_PATH")"
-[[ "$ARCHS" == *arm64* && "$ARCHS" == *x86_64* ]] \
-    || die "universal binary missing expected archs (got: $ARCHS)"
 
 BINARY_SIZE="$(ls -lh "$BINARY_PATH" | awk '{print $5}')"
-info "Universal binary built: $BINARY_PATH ($BINARY_SIZE), archs: $ARCHS"
+info "Universal binaries built: $BINARY_PATH ($BINARY_SIZE), $CLI_PATH ($(ls -lh "$CLI_PATH" | awk '{print $5}')), archs: $ARCHS"
 
 # ---- Confirm with user -------------------------------------------------------
 
@@ -154,7 +157,7 @@ This will:
     2. Create git tag $VERSION on HEAD
     3. Push tag to origin
     4. Create GitHub release $VERSION
-    5. Upload $BINARY_NAME (+ .sha256) as release assets
+    5. Upload $BINARY_NAME and $CLI_NAME (+ .sha256) as release assets
 
 EOF
 read -p "Proceed? [y/N] " -n 1 -r
@@ -188,13 +191,17 @@ if [[ "$SHOULD_SIGN" == "false" ]]; then
     fi
     info "Skipping Developer ID signing + notarize ($SKIP_REASON)."
     codesign --force --sign - "$BINARY_PATH"
+    codesign --force --sign - "$CLI_PATH"
 else
-    info "Signing + notarizing the universal binary..."
+    info "Signing + notarizing the universal binaries..."
     "$(dirname "$0")/sign-and-notarize.sh" "$BINARY_PATH"
+    ENTITLEMENTS="Sources/CheNtucool/Entitlements.plist" "$(dirname "$0")/sign-and-notarize.sh" "$CLI_PATH"
 fi
 
-shasum -a 256 "$BINARY_PATH" | awk '{print $1}' > "$BINARY_PATH.sha256"
-info "SHA-256: $(cat "$BINARY_PATH.sha256")"
+for f in "$BINARY_PATH" "$CLI_PATH"; do
+    shasum -a 256 "$f" | awk '{print $1}' > "$f.sha256"
+    info "SHA-256 $(basename "$f"): $(cat "$f.sha256")"
+done
 
 # ---- Package the .mcpb around the SIGNED binary -------------------------------
 
@@ -221,8 +228,8 @@ gh release create "$VERSION" \
     --title "$TITLE" \
     --notes "$RELEASE_NOTES"
 
-info "Uploading $BINARY_NAME (+ .sha256)..."
-gh release upload "$VERSION" "$BINARY_PATH" "$BINARY_PATH.sha256" --repo "$REPO"
+info "Uploading $BINARY_NAME and $CLI_NAME (+ .sha256)..."
+gh release upload "$VERSION" "$BINARY_PATH" "$BINARY_PATH.sha256" "$CLI_PATH" "$CLI_PATH.sha256" --repo "$REPO"
 
 if [[ -n "$MCPB_PATH" ]]; then
     info "Uploading $(basename "$MCPB_PATH") (+ .sha256)..."

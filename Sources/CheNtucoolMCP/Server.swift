@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import CheNtucoolCore
 
 /// NTU COOL (Canvas LMS) MCP Server — queries and human-confirmed writes against
 /// the Canvas API
@@ -31,20 +32,23 @@ class NtucoolMCPServer {
     private var clientSupportsFormElicitation = false
 
     private static let serverInstructions = """
-    # che-ntucool-mcp — NTU COOL (Canvas LMS) query server
+    # che-ntucool — NTU COOL (Canvas LMS) query server
 
     Queries and human-confirmed writes against NTU COOL, National Taiwan
-    University's Canvas LMS deployment (`cool.ntu.edu.tw`). Requires a Canvas
-    Personal Access Token stored in the macOS keychain (service
-    `ntu-cool-canvas`) — generate one at NTU COOL → 帳戶 → 設定 →
-    已核准的整合 → 新訪問令牌 (NTU's theme hides that section by default, so the
-    user may report not seeing it), then:
+    University's Canvas LMS deployment (`cool.ntu.edu.tw`).
 
-        security add-generic-password -s ntu-cool-canvas -a default -w
+    Credentials: no setup is normally needed. If the macOS keychain holds a
+    working Canvas token (service `ntu-cool-canvas`, account `default` or
+    $NTUCOOL_ACCOUNT) it is used; otherwise — including when NTU COOL rejects
+    it, which manually issued tokens do after about an hour — requests go
+    through a logged-in Safari tab on cool.ntu.edu.tw. If a call fails with
+    "Safari 沒有已登入的 COOL 分頁", ask the user to open and log in to NTU COOL
+    in Safari; do not ask them for a token. Never ask the user to paste a token
+    into the conversation.
 
-    Omit the value after `-w`; security prompts for it, keeping the token out of
-    the shell history and the process argument list. The account name must be
-    `default` unless NTUCOOL_ACCOUNT is exported to match.
+    For course building (modules, quizzes from markdown, assignments,
+    announcement files, publishing) use the `che-ntucool` CLI; this server
+    covers reads plus gated grade and announcement writes.
 
     ## Read tools
 
@@ -80,9 +84,10 @@ class NtucoolMCPServer {
 
     init() async {
         self.keychainAccount = ProcessInfo.processInfo.environment["NTUCOOL_ACCOUNT"] ?? "default"
+        self.transportLadder = Self.makeTransport(keychainAccount: keychainAccount)
         self.server = Server(
             name: "che-ntucool-mcp",
-            version: "0.2.0",
+            version: "0.3.0",
             instructions: Self.serverInstructions,
             capabilities: .init(tools: .init()),
             // Strict mode is correct on its own terms (the spec requires clients
@@ -112,18 +117,37 @@ class NtucoolMCPServer {
 
     // MARK: - Client construction
 
+    /// One transport per server process: the credential ladder decides once
+    /// (token → Safari) and every tool call after that reuses the decision.
+    private let transportLadder: CanvasTransport
+
+    private static func makeTransport(keychainAccount: String) -> CanvasTransport {
+        // `NTUCOOL_API_BASE` points the bearer transport at a stub so the write
+        // gate can be verified end-to-end — that override is token-only, since
+        // the Safari path is by construction same-origin with cool.ntu.edu.tw.
+        let env = ProcessInfo.processInfo.environment
+        let baseURL = env["NTUCOOL_API_BASE"]
+            .flatMap(URL.init(string:)) ?? CanvasURL.defaultAPIBase
+        // Pins the Safari fallback to one Canvas account (see AutoTransport).
+        let expectedUserID = env["NTUCOOL_EXPECTED_USER_ID"].flatMap(Int.init)
+        return AutoTransport(
+            tokenProvider: {
+                do {
+                    // Always headless (spawned over stdio): never wait on a
+                    // keychain dialog; .uiRequired propagates and the ladder
+                    // uses Safari.
+                    return try CanvasAuth.read(account: keychainAccount, allowUI: false)
+                } catch CanvasAuthError.itemNotFound {
+                    return nil
+                }
+            },
+            tokenTransportFactory: { TokenTransport(token: $0, baseURL: baseURL) },
+            expectedUserID: expectedUserID
+        )
+    }
+
     private func makeClient() throws -> CanvasAPIClient {
-        let token = try CanvasAuth.read(account: keychainAccount)
-        // `CanvasAPIClient` documents its baseURL as configurable so it can be
-        // pointed elsewhere for testing — but that was unreachable while this
-        // hardcoded the default. Exposing it makes the write gate verifiable
-        // end-to-end against a stub, which is the difference between believing
-        // the gate holds and having watched it hold.
-        if let override = ProcessInfo.processInfo.environment["NTUCOOL_API_BASE"],
-           let url = URL(string: override) {
-            return CanvasAPIClient(baseURL: url, token: token)
-        }
-        return CanvasAPIClient(token: token)
+        CanvasAPIClient(transport: transportLadder)
     }
 
     // MARK: - Handler registration

@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import CheNtucoolCore
 
 // Entry point
 let server = await NtucoolMCPServer()
